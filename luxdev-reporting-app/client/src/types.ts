@@ -1,0 +1,49 @@
+export interface User {
+    id: number;
+    email: string;
+    role: 'admin' | 'partner';
+    name: string;
+    partner_id?: number;
+}
+
+export interface Partner {
+    id: number;
+    name: string;
+    contact_email: string;
+    logo_url?: string;
+    contract_start_date: string;
+    contract_end_date: string;
+    description: string;
+    active_projects?: number;
+}
+
+export interface Project {
+    id: number;
+    partner_id: number;
+    title: string;
+    description: string;
+    status: 'active' | 'completed' | 'paused';
+    created_at: string;
+}
+
+export interface Report {
+    id: number;
+    project_id: number;
+    partner_id?: number;
+    partner_name?: string;
+    project_title?: string;
+    title: string;
+    submission_date: string;
+    reviewer?: string;
+    status: 'en attente' | 'validé' | 'brouillon' | 'late';
+}
+
+export interface CalendarEvent {
+    id: number;
+    partner_id: number;
+    partner_name?: string;
+    title: string;
+    event_date: string;
+    type: 'meeting' | 'deadline' | 'other';
+    description?: string;
+}

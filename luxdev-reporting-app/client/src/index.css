@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-lux-blue: #004A99;
+  --color-lux-teal: #00A19D;
+  --color-lux-slate: #333333;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900;
+  }
+}
+
+@utility glass {
+  @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+}
