@@ -10,6 +10,13 @@ import SharedEvents from './pages/SharedEvents';
 import PartnerDashboard from './pages/PartnerDashboard';
 import ReportsAll from './pages/ReportsAll';
 import MyProjects from './pages/MyProjects';
+import { useAuth } from './context/AuthContext';
+
+const AuthRedirect = () => {
+  const { user } = useAuth();
+  if (user?.role === 'admin') return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/partner-dashboard" replace />;
+};
 
 function App() {
   return (
@@ -18,7 +25,9 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={
+              <AuthRedirect />
+            } />
 
             {/* Admin Routes */}
             <Route path="/dashboard" element={<Dashboard />} />

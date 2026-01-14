@@ -13,6 +13,7 @@ import {
 import { motion } from 'framer-motion';
 import ContractProgress from '../components/ContractProgress';
 import ReportTemplateView from '../components/ReportTemplateView';
+import AITemplateGenerator from '../components/AITemplateGenerator';
 
 const PartnerDashboard = () => {
     const { user } = useAuth();
@@ -119,6 +120,14 @@ const PartnerDashboard = () => {
                         ))}
                     </div>
 
+                    {/* IA Template Generator for Partners */}
+                    <AITemplateGenerator
+                        partnerId={user?.partner_id || 0}
+                        onTemplateApplied={() => {
+                            // Re-fetch data to show the new template in the list if needed
+                            window.location.reload();
+                        }}
+                    />
                     {/* Référentiel de rapport section */}
                     <section className="glass p-8 rounded-[2.5rem] space-y-8">
                         <div className="flex items-center gap-3">

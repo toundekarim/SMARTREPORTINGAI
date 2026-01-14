@@ -14,9 +14,10 @@ interface Template {
 
 interface Props {
     template: Template;
+    showMediaOptions?: boolean;
 }
 
-const ReportTemplateView: React.FC<Props> = ({ template }) => {
+const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true }) => {
     const videoInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
     const financialInputRef = useRef<HTMLInputElement>(null);
@@ -56,11 +57,9 @@ const ReportTemplateView: React.FC<Props> = ({ template }) => {
 
     const handleSubmit = () => {
         setIsSubmitting(true);
-        // Simulation d'envoi réseau
         setTimeout(() => {
             setIsSubmitting(false);
             setIsSubmitted(true);
-            // On pourrait réinitialiser après un certain temps
             setTimeout(() => setIsSubmitted(false), 5000);
         }, 2000);
     };
@@ -82,30 +81,34 @@ const ReportTemplateView: React.FC<Props> = ({ template }) => {
             <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl relative overflow-hidden text-left">
                 <h5 className="font-bold text-lux-slate mb-4">{template.title}</h5>
 
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                    {/* Video Card */}
-                    <div
-                        onClick={() => triggerUpload('video')}
-                        className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all cursor-pointer relative group ${files.video ? 'bg-emerald-50 border-emerald-500 shadow-sm' : template.requires_video ? 'bg-white border-lux-teal shadow-sm hover:border-lux-blue' : 'bg-slate-100/50 border-slate-200 opacity-50 cursor-not-allowed'}`}
-                    >
-                        <div className="absolute -top-2 -right-2 transform transition-transform group-hover:scale-110">
-                            {files.video ? <CheckCircle2 size={16} className="text-emerald-500 bg-white rounded-full shadow-sm" /> : template.requires_video ? <Upload size={14} className="text-lux-teal animate-bounce" /> : null}
-                        </div>
-                        <Video size={20} className={files.video ? 'text-emerald-500' : template.requires_video ? 'text-lux-teal' : 'text-slate-400'} />
-                        <span className="text-[8px] font-black uppercase text-center">{files.video ? 'Vidéo prête' : 'Vidéo Demo'}</span>
-                    </div>
+                <div className={`grid ${showMediaOptions ? 'grid-cols-3' : 'grid-cols-1'} gap-4 mb-6`}>
+                    {showMediaOptions && (
+                        <>
+                            {/* Video Card */}
+                            <div
+                                onClick={() => triggerUpload('video')}
+                                className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all cursor-pointer relative group ${files.video ? 'bg-emerald-50 border-emerald-500 shadow-sm' : template.requires_video ? 'bg-white border-lux-teal shadow-sm hover:border-lux-blue' : 'bg-slate-100/50 border-slate-200 opacity-50 cursor-not-allowed'}`}
+                            >
+                                <div className="absolute -top-2 -right-2 transform transition-transform group-hover:scale-110">
+                                    {files.video ? <CheckCircle2 size={16} className="text-emerald-500 bg-white rounded-full shadow-sm" /> : template.requires_video ? <Upload size={14} className="text-lux-teal animate-bounce" /> : null}
+                                </div>
+                                <Video size={20} className={files.video ? 'text-emerald-500' : template.requires_video ? 'text-lux-teal' : 'text-slate-400'} />
+                                <span className="text-[8px] font-black uppercase text-center">{files.video ? 'Vidéo prête' : 'Vidéo Demo'}</span>
+                            </div>
 
-                    {/* Audio Card */}
-                    <div
-                        onClick={() => triggerUpload('audio')}
-                        className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all cursor-pointer relative group ${files.audio ? 'bg-emerald-50 border-emerald-500 shadow-sm' : template.requires_audio ? 'bg-white border-lux-teal shadow-sm hover:border-lux-blue' : 'bg-slate-100/50 border-slate-200 opacity-50 cursor-not-allowed'}`}
-                    >
-                        <div className="absolute -top-2 -right-2 transform transition-transform group-hover:scale-110">
-                            {files.audio ? <CheckCircle2 size={16} className="text-emerald-500 bg-white rounded-full shadow-sm" /> : template.requires_audio ? <Upload size={14} className="text-lux-teal animate-bounce" /> : null}
-                        </div>
-                        <Mic size={20} className={files.audio ? 'text-emerald-500' : template.requires_audio ? 'text-lux-teal' : 'text-slate-400'} />
-                        <span className="text-[8px] font-black uppercase text-center">{files.audio ? 'Audio chargé' : 'Audio Expl.'}</span>
-                    </div>
+                            {/* Audio Card */}
+                            <div
+                                onClick={() => triggerUpload('audio')}
+                                className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all cursor-pointer relative group ${files.audio ? 'bg-emerald-50 border-emerald-500 shadow-sm' : template.requires_audio ? 'bg-white border-lux-teal shadow-sm hover:border-lux-blue' : 'bg-slate-100/50 border-slate-200 opacity-50 cursor-not-allowed'}`}
+                            >
+                                <div className="absolute -top-2 -right-2 transform transition-transform group-hover:scale-110">
+                                    {files.audio ? <CheckCircle2 size={16} className="text-emerald-500 bg-white rounded-full shadow-sm" /> : template.requires_audio ? <Upload size={14} className="text-lux-teal animate-bounce" /> : null}
+                                </div>
+                                <Mic size={20} className={files.audio ? 'text-emerald-500' : template.requires_audio ? 'text-lux-teal' : 'text-slate-400'} />
+                                <span className="text-[8px] font-black uppercase text-center">{files.audio ? 'Audio chargé' : 'Audio Expl.'}</span>
+                            </div>
+                        </>
+                    )}
 
                     {/* Text Card with Menu Trigger */}
                     <div
@@ -120,6 +123,7 @@ const ReportTemplateView: React.FC<Props> = ({ template }) => {
                     </div>
                 </div>
 
+                {/* File selection and other logic remains same */}
                 <AnimatePresence>
                     {showFileTypeChoice && (
                         <motion.div
@@ -223,7 +227,7 @@ const ReportTemplateView: React.FC<Props> = ({ template }) => {
 
                 <div className="space-y-3">
                     <p className="text-[10px] font-black uppercase text-slate-400">Instructions Partenaires</p>
-                    <p className="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-xl border border-slate-100">
+                    <p className="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-xl border border-slate-100 italic">
                         {template.instructions}
                     </p>
                     <div className="flex items-center gap-2 text-[10px] text-lux-blue font-bold">
@@ -232,7 +236,6 @@ const ReportTemplateView: React.FC<Props> = ({ template }) => {
                     </div>
                 </div>
 
-                {/* Submit Button */}
                 {hasAnyFile && !isSubmitted && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}

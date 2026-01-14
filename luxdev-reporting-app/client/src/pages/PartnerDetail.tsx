@@ -4,11 +4,11 @@ import axios from 'axios';
 import ContractProgress from '../components/ContractProgress';
 import ProjectEvolutionChart from '../components/ProjectEvolutionChart';
 import ReportTemplateView from '../components/ReportTemplateView';
+import AITemplateGenerator from '../components/AITemplateGenerator';
 import {
     Building2,
     ArrowLeft,
     Mail,
-    Phone,
     MapPin,
     FileText,
     AlertCircle,
@@ -17,6 +17,7 @@ import {
     Calendar as CalendarIcon,
     TrendingUp
 } from 'lucide-react';
+import AIReportSummarizer from '../components/AIReportSummarizer';
 
 const PartnerDetail = () => {
     const { id } = useParams();
@@ -100,9 +101,21 @@ const PartnerDetail = () => {
                     {/* Report Template View */}
                     {partner.templates && partner.templates.length > 0 && (
                         <section className="glass p-8 rounded-[2.5rem]">
-                            <ReportTemplateView template={partner.templates[0]} />
+                            <ReportTemplateView
+                                template={partner.templates[0]}
+                                showMediaOptions={false}
+                            />
                         </section>
                     )}
+
+                    {/* AI Template Generator (Admin only) */}
+                    <AITemplateGenerator
+                        partnerId={Number(id)}
+                        onTemplateApplied={() => {
+                            // Re-fetch partner to show the new template
+                            window.location.reload();
+                        }}
+                    />
                 </div>
 
                 {/* Right Column: Projects & Evolution */}
@@ -152,6 +165,11 @@ const PartnerDetail = () => {
                             ))}
                         </div>
                     </section>
+
+                    {/* AI Analysis Section for Admin */}
+                    <div className="mb-10">
+                        <AIReportSummarizer />
+                    </div>
 
                     {/* Standard Reports List */}
                     <section className="glass p-8 rounded-[2.5rem]">

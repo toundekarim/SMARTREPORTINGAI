@@ -9,6 +9,7 @@ import {
     Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 import ProjectEvolutionChart from '../components/ProjectEvolutionChart';
 
 const StatCard = ({ label, value, icon: Icon, color, trend }: any) => (
@@ -31,6 +32,7 @@ const StatCard = ({ label, value, icon: Icon, color, trend }: any) => (
 );
 
 const Dashboard = () => {
+    const { user } = useAuth();
     const [globalStats, setGlobalStats] = useState<any[]>([]);
 
     useEffect(() => {
@@ -52,11 +54,13 @@ const Dashboard = () => {
         fetchStats();
     }, []);
 
+    const isAdmin = user?.role === 'admin';
+
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard label="Partenaires" value="12" icon={Users} color="bg-lux-blue" trend="+20%" />
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6`}>
+                {isAdmin && <StatCard label="Partenaires" value="12" icon={Users} color="bg-lux-blue" trend="+20%" />}
                 <StatCard label="Projets actifs" value="48" icon={ArrowUpRight} color="bg-lux-teal" trend="+5" />
                 <StatCard label="Rapports attendus" value="09" icon={FileText} color="bg-amber-500" />
                 <StatCard label="Alertes" value="03" icon={AlertCircle} color="bg-red-500" />

@@ -4,12 +4,62 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
+const aiService = require('./services/aiService');
+const multer = require('multer');
+const { PDFParse } = require('pdf-parse');
+const mammoth = require('mammoth');
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// --- AI ROUTE ---
+app.post('/api/ai/generate-template', async (req, res) => {
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ error: "Le prompt est requis" });
+
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        const isMockKey = !apiKey || apiKey === "VOTRE_CLE_ICI" || apiKey.includes("VOTRE_CLE");
+
+        if (!isMockKey) {
+            try {
+                const template = await aiService.generateReportTemplate(prompt);
+                return res.json(template);
+            } catch (aiErr) {
+                console.error("AI Generation failed, falling back to smart mock:", aiErr.message);
+            }
+        }
+
+        // --- SMART MOCK (Dynamic simulation) ---
+        const isHealth = prompt.toLowerCase().includes('santé') || prompt.toLowerCase().includes('médical');
+        const isWater = prompt.toLowerCase().includes('eau') || prompt.toLowerCase().includes('forage');
+
+        res.json({
+            title: `Rapport : ${prompt.substring(0, 30)}${prompt.length > 30 ? '...' : ''}`,
+            instructions: `Ce modèle a été généré pour répondre à votre besoin : "${prompt}". Veuillez détailler les impacts directs sur les bénéficiaires.`,
+            structure: [
+                { section: "Contexte du Projet", details: `Présentez l'état d'avancement spécifique pour : ${prompt}.` },
+                { section: "Objectifs de la Période", details: "Quels étaient les résultats attendus pour cette phase ?" },
+                { section: isHealth ? "Indicateurs Sanitaires" : isWater ? "Données Techniques (Débit/Qualité)" : "Indicateurs de Performance", details: "Données chiffrées et vérifiables." },
+                { section: "Analyse des Risques", details: "Quels sont les freins rencontrés sur le terrain ?" },
+                { section: "Recommandations", details: "Suggérez des ajustements pour la suite du projet." }
+            ],
+            requires_video: isWater || prompt.toLowerCase().includes('chantier'),
+            requires_audio: prompt.toLowerCase().includes('témoignage') || prompt.toLowerCase().includes('social'),
+            requires_text: true,
+            text_formats: "PDF, Word",
+            accepted_formats: ".pdf, .doc, .docx"
+        });
+    } catch (err) {
+        console.error("AI Route Error:", err);
+        res.status(500).json({ error: "Erreur critique lors de la génération" });
+    }
+});
 
 // Mock Data Fallback
 const MOCK_PARTNERS = [
@@ -97,7 +147,6 @@ app.get('/api/partners/:id', async (req, res) => {
 });
 
 app.get('/api/stats/global', async (req, res) => {
-    // Return combined evolution for all projects as example
     if (useMock) {
         const allPoints = MOCK_PROJECTS.flatMap(p => p.evolution_data.map(d => ({ ...d, project: p.title })));
         return res.json(allPoints);
@@ -166,12 +215,43 @@ app.get('/api/templates', async (req, res) => {
     }
 });
 
+app.post('/api/ai/summarize', upload.single('report'), async (req, res) => {
+    console.log("Summarize request received");
+    try {
+        if (!req.file) {
+            console.log("No file received");
+            return res.status(400).json({ error: "Fichier requis" });
+        }
+        console.log("File received:", req.file.originalname, "Size:", req.file.size, "Mime:", req.file.mimetype);
+
+        let text = "";
+        const buffer = req.file.buffer;
+
+        if (req.file.mimetype === 'application/pdf') {
+            const parser = new PDFParse({ data: buffer });
+            const result = await parser.getText();
+            text = result.text;
+            await parser.destroy();
+        } else if (req.file.mimetype.includes('word')) {
+            const data = await mammoth.extractRawText({ buffer });
+            text = data.value;
+        } else {
+            text = buffer.toString('utf8');
+        }
+
+        const summary = await aiService.summarizeReport(text);
+        res.json(summary);
+    } catch (err) {
+        console.error("Route Error:", err);
+        res.status(500).json({ error: "Erreur lors de l'analyse du rapport : " + err.message });
+    }
+});
+
 const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     initDb();
 });
 
-// Prevent exiting
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err);
 });
