@@ -47,3 +47,16 @@ export interface CalendarEvent {
     type: 'meeting' | 'deadline' | 'other';
     description?: string;
 }
+
+export interface Template {
+    id: number;
+    partner_id: number;
+    partner_name?: string;
+    title: string;
+    requires_video: boolean;
+    requires_audio: boolean;
+    requires_text: boolean;
+    text_formats: string;
+    instructions: string;
+    created_at: string;
+}

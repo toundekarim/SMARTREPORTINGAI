@@ -107,9 +107,15 @@ const MyProjects = () => {
                                         Mise à jour: {new Date(project.created_at).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <button className="text-sm font-black text-lux-teal hover:underline decoration-2 underline-offset-4">
-                                    Détails & Rapports
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-lux-teal/10 text-lux-teal text-xs font-black rounded-xl hover:bg-lux-teal hover:text-white transition-all">
+                                        <Plus size={14} />
+                                        Créer un Rapport
+                                    </button>
+                                    <button className="text-sm font-black text-lux-teal hover:underline decoration-2 underline-offset-4">
+                                        Détails
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}

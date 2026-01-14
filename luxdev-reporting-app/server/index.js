@@ -156,6 +156,16 @@ app.get('/api/partners/:id/projects', async (req, res) => {
     }
 });
 
+app.get('/api/templates', async (req, res) => {
+    if (useMock) return res.json(MOCK_TEMPLATES);
+    try {
+        const result = await pool.query('SELECT t.*, p.name as partner_name FROM report_templates t JOIN partners p ON t.partner_id = p.id ORDER BY t.created_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     initDb();

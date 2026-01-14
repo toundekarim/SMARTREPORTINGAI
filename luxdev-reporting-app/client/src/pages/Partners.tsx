@@ -1,17 +1,32 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, ChevronRight, Mail, Phone, ExternalLink } from 'lucide-react';
+import axios from 'axios';
+import { Building2, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Partner } from '../types';
 
 const Partners = () => {
-    const partners = [
-        { id: 1, name: 'Alpha Solutions', contact: 'Marc Dupont', desc: 'Infrastructure Cloud & Sécurité', projects: 4, status: 'Active' },
-        { id: 2, name: 'Green Energy Co', contact: 'Sara Léo', desc: 'Développement Durable & Audit', projects: 2, status: 'Review' },
-        { id: 3, name: 'Build Corp', contact: 'Jean Petit', desc: 'Génie Civil & Construction', projects: 7, status: 'Active' },
-        { id: 4, name: 'CyberSec Lux', contact: 'Alex V.', desc: 'Protection des données Sensibles', projects: 1, status: 'Paused' },
-    ];
+    const [partners, setPartners] = useState<Partner[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const res = await axios.get('http://localhost:3000/api/partners');
+                setPartners(res.data);
+            } catch (err) {
+                console.error("Error fetching partners data", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    if (loading) return <div className="p-8 text-center font-bold text-lux-slate animate-pulse">Chargement des partenaires...</div>;
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-1">Portefeuille LuxDev</h2>
@@ -23,16 +38,13 @@ const Partners = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-                {partners.map((partner, i) => (
+                {partners.map((partner) => (
                     <motion.div
                         whileHover={{ y: -5 }}
                         key={partner.id}
                         className="glass group relative overflow-hidden"
                     >
-                        {/* Status Stripe */}
-                        <div className={`absolute top-0 left-0 w-2 h-full ${partner.status === 'Active' ? 'bg-lux-teal' :
-                                partner.status === 'Paused' ? 'bg-red-500' : 'bg-amber-500'
-                            }`}></div>
+                        <div className="absolute top-0 left-0 w-2 h-full bg-lux-teal"></div>
 
                         <div className="p-8">
                             <div className="flex justify-between items-start mb-6">
@@ -44,7 +56,7 @@ const Partners = () => {
                                         <h3 className="text-xl font-black text-lux-slate tracking-tight">
                                             {partner.name}
                                         </h3>
-                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">{partner.status}</p>
+                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Active</p>
                                     </div>
                                 </div>
                                 <Link
@@ -56,17 +68,17 @@ const Partners = () => {
                             </div>
 
                             <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
-                                {partner.desc}
+                                {partner.description}
                             </p>
 
                             <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-100">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-300 tracking-wider mb-1">Responsable</p>
-                                    <p className="text-sm font-bold text-lux-slate">{partner.contact}</p>
+                                    <p className="text-[10px] font-black uppercase text-slate-300 tracking-wider mb-1">Email Contact</p>
+                                    <p className="text-sm font-bold text-lux-slate truncate">{partner.contact_email}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-300 tracking-wider mb-1">Projets actifs</p>
-                                    <p className="text-sm font-bold text-lux-slate">{partner.projects} initiatives</p>
+                                    <p className="text-[10px] font-black uppercase text-slate-300 tracking-wider mb-1">Statut Contrat</p>
+                                    <p className="text-sm font-bold text-lux-teal">En cours</p>
                                 </div>
                             </div>
                         </div>
