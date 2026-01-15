@@ -16,9 +16,10 @@ interface Template {
 interface Props {
     template: Template;
     showMediaOptions?: boolean;
+    hideSubmit?: boolean;
 }
 
-const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true }) => {
+const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true, hideSubmit = false }) => {
     const videoInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
     const financialInputRef = useRef<HTMLInputElement>(null);
@@ -281,7 +282,7 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                     </div>
                 </div>
 
-                {hasAnyFile && !isSubmitted && (
+                {hasAnyFile && !isSubmitted && !hideSubmit && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}

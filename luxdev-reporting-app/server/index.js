@@ -6,7 +6,7 @@ const path = require('path');
 require('dotenv').config();
 const aiService = require('./services/aiService');
 const multer = require('multer');
-const { PDFParse } = require('pdf-parse');
+const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const sqlite3 = require('sqlite3').verbose();
 
@@ -423,11 +423,20 @@ app.get('/api/stats/summary', async (req, res) => {
         const projects = await pool.query('SELECT COUNT(*) as count FROM projects WHERE status = \'active\'');
         const reports = await pool.query('SELECT COUNT(*) as count FROM reports WHERE status = \'pending\'');
 
+        // Alerts: reports with deadlines in the next 3 days
+        const alerts = await pool.query(`
+            SELECT COUNT(*) as count FROM reports 
+            WHERE status = 'pending' 
+            AND deadline IS NOT NULL 
+            AND deadline <= date('now', '+3 days')
+            AND deadline >= date('now')
+        `);
+
         res.json({
             partnersCount: parseInt(partners.rows[0].count),
             projectsCount: parseInt(projects.rows[0].count),
             reportsPending: parseInt(reports.rows[0].count),
-            alertsCount: 0 // Logic for alerts could be added later
+            alertsCount: parseInt(alerts.rows[0].count)
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -535,7 +544,18 @@ app.get('/api/events', async (req, res) => {
         });
 
         const all = [...eventRes.rows, ...reportRes.rows, ...recurringEvents].sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
-        res.json(all);
+
+        // Add alert flag if date is in the next 3 days
+        const processed = all.map(ev => {
+            const evDate = new Date(ev.event_date);
+            const diffDays = (evDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+            return {
+                ...ev,
+                is_alert: diffDays >= -0.5 && diffDays <= 3 // Buffer for today's events
+            };
+        });
+
+        res.json(processed);
     } catch (err) {
         console.error("Error fetching events:", err);
         res.status(500).json({ error: err.message });
@@ -674,10 +694,8 @@ app.post('/api/ai/summarize', upload.single('report'), async (req, res) => {
         const buffer = req.file.buffer;
 
         if (req.file.mimetype === 'application/pdf') {
-            const parser = new PDFParse({ data: buffer });
-            const result = await parser.getText();
+            const result = await pdfParse(buffer);
             text = result.text;
-            await parser.destroy();
         } else if (req.file.mimetype.includes('word')) {
             const data = await mammoth.extractRawText({ buffer });
             text = data.value;

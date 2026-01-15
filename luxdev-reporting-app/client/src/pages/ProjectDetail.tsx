@@ -136,18 +136,32 @@ const ProjectDetail = () => {
                                     instructions: 'Utilisez ce modèle pour soumettre vos rapports périodiques de projet. Vous pourrez choisir le type de rapport (Narratif ou Financier) lors du téléchargement.'
                                 }}
                                 showMediaOptions={false}
+                                hideSubmit={true}
                             />
 
                             {isAdmin && (
                                 <div className="mt-10 pt-8 border-t border-slate-100 space-y-6 relative z-10">
                                     <div className="flex items-center gap-2 mb-2">
                                         <Calendar size={16} className="text-lux-blue" />
-                                        <span className="text-[10px] font-black uppercase text-lux-slate tracking-widest">Assignation au partenaire</span>
+                                        <span className="text-[10px] font-black uppercase text-lux-slate tracking-widest">Configuration de la demande</span>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Échéance (Deadline)</label>
+                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Type de rapport</label>
+                                            <select
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-lux-blue/10 focus:border-lux-blue transition-all text-xs font-bold"
+                                                value={newReport.title}
+                                                onChange={e => setNewReport({ ...newReport, title: e.target.value })}
+                                            >
+                                                <option value="Rapport Mensuel de Suivi">Mensuel</option>
+                                                <option value="Rapport Trimestriel d'Activités">Trimestriel</option>
+                                                <option value="Rapport Financier Périodique">Financier</option>
+                                                <option value="Audit de Phase">Audit</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-400 ml-1">Date limite (Deadline)</label>
                                             <input
                                                 type="date"
                                                 required
@@ -160,24 +174,18 @@ const ProjectDetail = () => {
                                             <button
                                                 onClick={handleAssignReport}
                                                 disabled={isAssigningReport}
-                                                className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg ${assignSuccess ? 'bg-emerald-500 text-white' : 'bg-lux-blue text-white shadow-lux-blue/20 hover:scale-[1.02]'}`}
+                                                className={`w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg ${assignSuccess ? 'bg-emerald-500 text-white' : 'bg-lux-blue text-white shadow-lux-blue/20 hover:scale-[1.02]'}`}
                                             >
                                                 {assignSuccess ? (
-                                                    <>
-                                                        <Check size={16} />
-                                                        Envoyé au Calendrier
-                                                    </>
+                                                    <Check size={16} />
                                                 ) : (
-                                                    <>
-                                                        <Send size={16} />
-                                                        Fixer l'échéance
-                                                    </>
+                                                    'Valider'
                                                 )}
                                             </button>
                                         </div>
                                     </div>
                                     <p className="text-[9px] text-slate-400 italic text-center">
-                                        Le partenaire recevra une notification et la date sera ajoutée à l'agenda.
+                                        Cliquez sur Valider pour envoyer la demande et l'ajouter au calendrier.
                                     </p>
                                 </div>
                             )}

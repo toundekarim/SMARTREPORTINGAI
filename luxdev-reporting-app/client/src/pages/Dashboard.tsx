@@ -128,7 +128,10 @@ const Dashboard = () => {
                             <div key={i} className="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-all cursor-pointer group">
                                 <div className={`mt-1 w-2 h-2 rounded-full ${event.type === 'meeting' ? 'bg-lux-teal' : 'bg-amber-500'} group-hover:scale-150 transition-transform`}></div>
                                 <div className="flex-1">
-                                    <h4 className="font-bold text-xs text-lux-slate truncate">{event.title}</h4>
+                                    <h4 className={`font-bold text-xs truncate ${event.is_alert ? 'text-red-600' : 'text-lux-slate'}`}>
+                                        {event.title}
+                                        {event.is_alert && ' ⚠️'}
+                                    </h4>
                                     <p className="text-[10px] text-slate-400 font-medium">{event.partner_name}</p>
                                 </div>
                                 <div className="text-right">

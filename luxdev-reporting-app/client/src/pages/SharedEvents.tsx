@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { MapPin, Users, Calendar } from 'lucide-react';
+import { MapPin, Users, Calendar, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const SharedEvents = () => {
@@ -76,6 +76,12 @@ const SharedEvents = () => {
                                     <h3 className="text-xl font-black text-lux-slate tracking-tight group-hover:text-lux-teal transition-colors">
                                         {event.title}
                                     </h3>
+                                    {event.is_alert && (
+                                        <span className="flex items-center gap-1 text-[8px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full animate-pulse">
+                                            <AlertCircle size={10} />
+                                            URGENT
+                                        </span>
+                                    )}
                                 </div>
 
                                 <p className="text-slate-400 text-sm italic">{event.description}</p>
