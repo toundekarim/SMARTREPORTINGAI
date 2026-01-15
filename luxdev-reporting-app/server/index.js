@@ -10,13 +10,36 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const sqlite3 = require('sqlite3').verbose();
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Configure Multer for disk storage
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = './uploads';
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir);
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
+});
+
+const upload = multer({ storage: storage });
+const uploadMemory = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+    console.log("Created uploads directory");
+}
+
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- AI ROUTE ---
 app.post('/api/ai/generate-template', async (req, res) => {
@@ -65,10 +88,50 @@ app.post('/api/ai/generate-template', async (req, res) => {
 // Mock Data Fallback
 let MOCK_PARTNERS = [
     { id: 1, name: 'Alpha Solutions', contact_email: 'contact@alpha.lu', description: 'Partenaire technologique spécialisé en infrastructure.', contract_start_date: '2024-01-01', contract_end_date: '2027-01-01' },
-    { id: 2, name: 'Green Energy Co', contact_email: 'info@green.lu', description: 'Consultants en développement durable.', contract_start_date: '2023-06-01', contract_end_date: '2025-06-01' }
+    { id: 2, name: 'Green Energy Co', contact_email: 'info@green.lu', description: 'Consultants en développement durable.', contract_start_date: '2023-06-01', contract_end_date: '2025-06-01' },
+    { id: 19, name: 'EPITECH', contact_email: 'contact@epitech.eu', description: 'Expertise en formation et développement.', contract_start_date: '2024-01-01', contract_end_date: '2027-01-01', meeting_frequency: 'hebdomadaire' },
+    { id: 20, name: 'Alpha Solutions', contact_email: 'support@alpha.lu', description: 'Solutions IT avancées.', contract_start_date: '2024-01-01', contract_end_date: '2026-01-01', meeting_frequency: 'mensuelle' },
+    { id: 21, name: 'ergi', contact_email: 'info@ergi.lu', description: 'Énergies renouvelables et innovation.', contract_start_date: '2024-06-01', contract_end_date: '2027-06-01', meeting_frequency: 'hebdomadaire' }
 ];
 
-const MOCK_PROJECTS = [];
+const MOCK_PROJECTS = [
+    {
+        id: 101,
+        partner_id: 19,
+        title: 'Expansion Infrastructure Cloud',
+        description: 'Migration des services critiques vers une architecture hybride hautement disponible.',
+        status: 'active',
+        evolution_data: [
+            { date: '2025-10', prog: 15 },
+            { date: '2025-11', prog: 30 },
+            { date: '2025-12', prog: 55 },
+            { date: '2026-01', prog: 75 }
+        ]
+    },
+    {
+        id: 102,
+        partner_id: 20,
+        title: 'Modernisation Logicielle Alpha',
+        description: 'Refonte complète de l' + "'" + 'interface utilisateur et mise à jour des frameworks core.',
+        status: 'active',
+        evolution_data: [
+            { date: '2025-11', prog: 20 },
+            { date: '2025-12', prog: 45 },
+            { date: '2026-01', prog: 60 }
+        ]
+    },
+    {
+        id: 103,
+        partner_id: 21,
+        title: 'Optimisation Réseau ergi',
+        description: 'Amélioration de la bande passante et sécurité des points d' + "'" + 'accès.',
+        status: 'active',
+        evolution_data: [
+            { date: '2025-12', prog: 10 },
+            { date: '2026-01', prog: 25 }
+        ]
+    }
+];
 
 const MOCK_TEMPLATES = [
     { id: 1, partner_id: 1, title: 'Template de Rapport Technique Infra', requires_video: true, requires_audio: true, requires_text: true, text_formats: 'Word, PDF, Texte Simple', instructions: 'Merci d\'inclure une vidéo de démonstration de l\'infrastructure, un audio explicatif des choix techniques et le document PDF détaillé.' },
@@ -76,7 +139,7 @@ const MOCK_TEMPLATES = [
 ];
 
 const MOCK_REPORTS = [
-    { id: 1001, project_id: 101, partner_id: 1, title: 'Rapport Mensuel Janvier - Digitalisation', status: 'validé', submission_date: '2026-01-05', reviewer: 'Jean Dupont' },
+    { id: 1001, project_id: 101, partner_id: 1, title: 'Rapport Urgent Test', status: 'pending', submission_date: new Date(Date.now() + 86400000).toISOString(), deadline: new Date(Date.now() + 86400000).toISOString(), reviewer: 'Jean Dupont' },
     { id: 1002, project_id: 101, partner_id: 1, title: 'Rapport Mensuel Février - Digitalisation', status: 'en attente', submission_date: '2026-02-02', reviewer: 'Jean Dupont' },
     { id: 1003, project_id: 102, partner_id: 2, title: 'Audit Mi-parcours - Écomobilité', status: 'validé', submission_date: '2025-12-15', reviewer: 'Marie Curie' },
     { id: 1004, project_id: 102, partner_id: 2, title: 'Rapport Trimestriel Q1 - Écomobilité', status: 'brouillon', submission_date: '2026-01-20', reviewer: 'Marie Curie' }
@@ -154,10 +217,15 @@ const initDb = async () => {
                 await pool.query(schema);
             }
         } else {
-            // Just ensure tables exist (CREATE TABLE IF NOT EXISTS parts)
-            // For simplicity in this demo, if it has data we assume schema is okay
-            // or we could run only the CREATE TABLE parts.
             console.log('Database already has data, skipping seed.');
+        }
+
+        // Add file_path column if missing - basic migration
+        try {
+            await pool.query("ALTER TABLE reports ADD COLUMN file_path TEXT");
+            console.log("Migration: Added file_path column to reports table");
+        } catch (e) {
+            // Ignore if column already exists
         }
 
         console.log(`Database (${dbType}) ready`);
@@ -266,20 +334,97 @@ app.delete('/api/partners/:id', async (req, res) => {
     if (useMock) {
         const index = MOCK_PARTNERS.findIndex(p => p.id === id);
         if (index !== -1) {
-            const deleted = MOCK_PARTNERS.splice(index, 1);
-            return res.json(deleted[0]);
+            const deleted = MOCK_PARTNERS.splice(index, 1)[0];
+
+            // Cascade delete: Remove all associated data
+            console.log(`Cascade deleting data for partner ${id}...`);
+
+            // Delete projects
+            const deletedProjects = MOCK_PROJECTS.filter(p => p.partner_id === id);
+            MOCK_PROJECTS = MOCK_PROJECTS.filter(p => p.partner_id !== id);
+            console.log(`Deleted ${deletedProjects.length} projects`);
+
+            // Delete reports
+            const deletedReports = MOCK_REPORTS.filter(r => r.partner_id === id);
+            MOCK_REPORTS = MOCK_REPORTS.filter(r => r.partner_id !== id);
+            console.log(`Deleted ${deletedReports.length} reports`);
+
+            // Delete events
+            const deletedEvents = MOCK_EVENTS.filter(e => e.partner_id === id);
+            MOCK_EVENTS = MOCK_EVENTS.filter(e => e.partner_id !== id);
+            console.log(`Deleted ${deletedEvents.length} events`);
+
+            // Delete report files if they exist
+            deletedReports.forEach(report => {
+                if (report.file_path && fs.existsSync(report.file_path)) {
+                    try {
+                        fs.unlinkSync(report.file_path);
+                        console.log(`Deleted file: ${report.file_path}`);
+                    } catch (e) {
+                        console.error("Error deleting file:", e.message);
+                    }
+                }
+            });
+
+            return res.json({
+                message: "Partenaire et données associées supprimés avec succès",
+                deleted,
+                cascade: {
+                    projects: deletedProjects.length,
+                    reports: deletedReports.length,
+                    events: deletedEvents.length
+                }
+            });
         }
-        // If not found in simple mock array, checking if it was a persistent mock
         return res.status(404).json({ error: "Partenaire non trouvé dans les données mock" });
     }
 
     try {
+        // Cascade delete in database
+        // First, get all reports to delete their files (reports are linked via projects)
+        const reportsResult = await pool.query(
+            'SELECT r.file_path FROM reports r JOIN projects p ON r.project_id = p.id WHERE p.partner_id = $1',
+            [id]
+        );
+
+        // Delete files
+        reportsResult.rows.forEach(report => {
+            if (report.file_path && fs.existsSync(report.file_path)) {
+                try {
+                    fs.unlinkSync(report.file_path);
+                    console.log(`Deleted file: ${report.file_path}`);
+                } catch (e) {
+                    console.error("Error deleting file:", e.message);
+                }
+            }
+        });
+
+        // Delete all associated data (cascade)
+        // Delete reports first (they reference projects)
+        await pool.query(
+            'DELETE FROM reports WHERE project_id IN (SELECT id FROM projects WHERE partner_id = $1)',
+            [id]
+        );
+        // Delete report templates
+        await pool.query('DELETE FROM report_templates WHERE partner_id = $1', [id]);
+        // Delete events
+        await pool.query('DELETE FROM events WHERE partner_id = $1', [id]);
+        // Delete projects
+        await pool.query('DELETE FROM projects WHERE partner_id = $1', [id]);
+
+        // Finally delete the partner
         const result = await pool.query('DELETE FROM partners WHERE id = $1 RETURNING *', [id]);
         if (result.rowCount === 0) {
             return res.status(404).json({ error: "Partenaire non trouvé" });
         }
-        res.json(result.rows[0]);
+
+        console.log(`Partner ${id} and all associated data deleted successfully`);
+        res.json({
+            message: "Partenaire et données associées supprimés avec succès",
+            deleted: result.rows[0]
+        });
     } catch (err) {
+        console.error("Error deleting partner:", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -366,43 +511,50 @@ app.put('/api/projects/:id/template', async (req, res) => {
 
 app.get('/api/stats/global', async (req, res) => {
     if (useMock) {
-        // Create a trend of progress over months from mock data
-        const stats = [
-            { date: 'JAN', prog: 20 },
-            { date: 'FEV', prog: 35 },
-            { date: 'MAR', prog: 45 },
-            { date: 'AVR', prog: 60 },
-            { date: 'MAI', prog: 78 },
-            { date: 'JUN', prog: 85 },
-        ];
-        return res.json(stats);
+        // Mock data with expected vs actual
+        return res.json([
+            { date: 'JAN', expected: 20, actual: 20 },
+            { date: 'FEV', expected: 40, actual: 35 },
+            { date: 'MAR', expected: 60, actual: 50 },
+            { date: 'AVR', expected: 80, actual: 65 },
+            { date: 'MAI', expected: 90, actual: 80 },
+            { date: 'JUN', expected: 100, actual: 95 },
+        ]);
     }
     try {
-        const result = await pool.query('SELECT evolution_data FROM projects WHERE evolution_data IS NOT NULL');
+        const reportsResult = await pool.query('SELECT deadline, submission_date FROM reports');
+        const reports = reportsResult.rows;
+        const totalReports = reports.length || 1; // Avoid division by zero
 
-        // Aggregate all projects data by date
-        const aggregation = {};
-        result.rows.forEach(row => {
-            try {
-                const data = typeof row.evolution_data === 'string' ? JSON.parse(row.evolution_data) : row.evolution_data;
-                if (Array.isArray(data)) {
-                    data.forEach(point => {
-                        if (!aggregation[point.date]) aggregation[point.date] = { sum: 0, count: 0 };
-                        aggregation[point.date].sum += point.prog || 0;
-                        aggregation[point.date].count += 1;
-                    });
-                }
-            } catch (pErr) {
-                console.error("Parse error for evolution_data:", pErr);
-            }
+        // Collect all relevant dates (deadlines and submissions)
+        const dates = new Set();
+        reports.forEach(r => {
+            if (r.deadline) dates.add(r.deadline.substring(0, 7)); // YYYY-MM
+            if (r.submission_date) dates.add(r.submission_date.substring(0, 7));
         });
 
-        // Convert to array and calculate average
-        const stats = Object.keys(aggregation).sort().map(date => ({
-            date,
-            prog: Math.round(aggregation[date].sum / aggregation[date].count)
-        }));
+        // Convert to sorted array
+        const sortedDates = Array.from(dates).sort();
 
+        // Calculate cumulative progress for each month
+        const stats = sortedDates.map(dateStr => {
+            const date = new Date(dateStr + '-01');
+            // End of month approximation for comparison
+            // Actually, simple string comparison YYYY-MM works well for "by end of month" logic if standardized
+
+            const expectedCount = reports.filter(r => r.deadline && r.deadline.substring(0, 7) <= dateStr).length;
+            const actualCount = reports.filter(r => r.submission_date && r.submission_date.substring(0, 7) <= dateStr).length;
+
+            return {
+                date: new Date(dateStr).toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase(),
+                rawDate: dateStr, // Keep for sorting if needed
+                expected: Math.round((expectedCount / totalReports) * 100),
+                actual: Math.round((actualCount / totalReports) * 100)
+            };
+        });
+
+        // Limit to reasonable number of points if too many (e.g. last 12 months) purely for UI?
+        // For now return all sorted
         res.json(stats);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -438,6 +590,31 @@ app.get('/api/stats/summary', async (req, res) => {
             reportsPending: parseInt(reports.rows[0].count),
             alertsCount: parseInt(alerts.rows[0].count)
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/events', async (req, res) => {
+    const { partner_id, title, description, event_date, type } = req.body;
+    if (useMock) {
+        const newEvent = {
+            id: MOCK_EVENTS.length + 1,
+            partner_id: parseInt(partner_id),
+            title,
+            description,
+            event_date,
+            type
+        };
+        MOCK_EVENTS.push(newEvent);
+        return res.json(newEvent);
+    }
+    try {
+        const result = await pool.query(
+            'INSERT INTO events (partner_id, title, description, event_date, type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [partner_id, title, description, event_date, type]
+        );
+        res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -561,25 +738,31 @@ app.get('/api/events', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-app.post('/api/reports', async (req, res) => {
-    const { project_id, partner_id, title, deadline } = req.body;
+app.post('/api/reports', upload.single('report_file'), async (req, res) => {
+    const { project_id, partner_id, title, deadline, status } = req.body;
+    const submissionDate = new Date().toISOString().split('T')[0];
+    const filePath = req.file ? req.file.path : null;
+
     if (useMock) {
         const newReport = {
             id: MOCK_REPORTS.length + 1000,
-            project_id: parseInt(project_id),
-            partner_id: parseInt(partner_id),
+            project_id: parseInt(project_id || 0),
+            partner_id: parseInt(partner_id || 0) || (MOCK_PROJECTS.find(p => p.id === parseInt(project_id))?.partner_id),
             title,
-            deadline,
-            status: 'pending',
+            deadline: deadline || submissionDate,
+            submission_date: submissionDate,
+            status: status || 'en attente',
+            file_path: filePath,
             created_at: new Date().toISOString()
         };
         MOCK_REPORTS.push(newReport);
+        console.log("Mock Report added with file:", newReport.title, filePath);
         return res.json(newReport);
     }
     try {
         const result = await pool.query(
-            'INSERT INTO reports (project_id, title, deadline, status) VALUES ($1, $2, $3, $4) RETURNING *',
-            [project_id, title, deadline, 'pending']
+            'INSERT INTO reports (project_id, title, deadline, submission_date, status, file_path) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [project_id, title, deadline || submissionDate, submissionDate, status || 'en attente', filePath]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -605,6 +788,59 @@ app.get('/api/reports', async (req, res) => {
             ORDER BY submission_date DESC
         `);
         res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/reports/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+
+    if (useMock) {
+        const index = MOCK_REPORTS.findIndex(r => r.id === id);
+        if (index === -1) {
+            return res.status(404).json({ error: "Rapport non trouvé" });
+        }
+
+        const deleted = MOCK_REPORTS.splice(index, 1)[0];
+        console.log(`Mock Report deleted: ${deleted.title}`);
+
+        // Delete associated file if exists
+        if (deleted.file_path && fs.existsSync(deleted.file_path)) {
+            try {
+                fs.unlinkSync(deleted.file_path);
+                console.log(`Deleted file: ${deleted.file_path}`);
+            } catch (e) {
+                console.error("Error deleting file:", e.message);
+            }
+        }
+
+        return res.json({ message: "Rapport supprimé avec succès", deleted });
+    }
+
+    try {
+        // Get report info before deletion to delete file
+        const reportResult = await pool.query('SELECT * FROM reports WHERE id = $1', [id]);
+        if (reportResult.rows.length === 0) {
+            return res.status(404).json({ error: "Rapport non trouvé" });
+        }
+
+        const report = reportResult.rows[0];
+
+        // Delete from database
+        await pool.query('DELETE FROM reports WHERE id = $1', [id]);
+
+        // Delete associated file if exists
+        if (report.file_path && fs.existsSync(report.file_path)) {
+            try {
+                fs.unlinkSync(report.file_path);
+                console.log(`Deleted file: ${report.file_path}`);
+            } catch (e) {
+                console.error("Error deleting file:", e.message);
+            }
+        }
+
+        res.json({ message: "Rapport supprimé avec succès", deleted: report });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -681,7 +917,7 @@ app.post('/api/templates', async (req, res) => {
     }
 });
 
-app.post('/api/ai/summarize', upload.single('report'), async (req, res) => {
+app.post('/api/ai/summarize', uploadMemory.single('report'), async (req, res) => {
     console.log("Summarize request received");
     try {
         if (!req.file) {
@@ -738,9 +974,26 @@ app.post('/api/reports/:id/analyze', async (req, res) => {
         const isFinancial = report.title.toLowerCase().includes('financier') || report.title.toLowerCase().includes('budget');
         const type = isFinancial ? 'financial' : 'narrative';
 
-        // Simulate reading content since we don't store actual files well in this demo
-        textContent = `Contenu simulé pour l'analyse du rapport "${report.title}". 
-        ${isFinancial ? "Ceci est un rapport financier détaillant les dépenses de la période. Budget alloué : 150000 EUR. Dépenses effectuées: 125000 EUR." : "Ceci est un rapport narratif détaillant les progrès sur le terrain, les réunions avec les parties prenantes et les formations réalisées."}`;
+        if (report.file_path && fs.existsSync(report.file_path)) {
+            const buffer = fs.readFileSync(report.file_path);
+            const ext = path.extname(report.file_path).toLowerCase();
+
+            if (ext === '.pdf') {
+                const data = await pdfParse(buffer);
+                textContent = data.text;
+            } else if (ext === '.docx' || ext === '.doc') {
+                const data = await mammoth.extractRawText({ buffer });
+                textContent = data.value;
+            } else {
+                textContent = buffer.toString('utf8');
+            }
+            console.log(`[ANALYSIS] Text extracted from ${report.file_path}. Length: ${textContent.length}`);
+            console.log(`[ANALYSIS] Text preview: ${textContent.substring(0, 200)}...`);
+        } else {
+            console.warn(`[ANALYSIS] No real file found at ${report.file_path}, using placeholder`);
+            textContent = `Contenu simulé pour l'analyse du rapport "${report.title}". 
+            ${isFinancial ? "Ceci est un rapport financier détaillant les dépenses de la période. Budget alloué : 150000 EUR. Dépenses effectuées: 125000 EUR." : "Ceci est un rapport narratif détaillant les progrès sur le terrain, les réunions avec les parties prenantes et les formations réalisées."}`;
+        }
 
         const analysis = await aiService.summarizeReport(textContent, type);
         res.json({ ...analysis, type });

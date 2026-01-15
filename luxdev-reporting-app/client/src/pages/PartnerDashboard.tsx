@@ -1,18 +1,16 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    FileText,
     Bell,
     Clock,
     AlertCircle,
     Building2,
-    TrendingUp,
-    LayoutGrid
+    TrendingUp
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ContractProgress from '../components/ContractProgress';
-import ReportTemplateView from '../components/ReportTemplateView';
 import AITemplateGenerator from '../components/AITemplateGenerator';
 
 const PartnerDashboard = () => {
@@ -52,9 +50,12 @@ const PartnerDashboard = () => {
                         <p className="font-bold text-sm">Bienvenue sur votre portail. N'oubliez pas de consulter les référentiels ci-dessous.</p>
                     </div>
                 </div>
-                <button className="bg-white text-lux-teal px-4 py-1.5 rounded-xl font-black text-[10px] uppercase shadow-md hover:scale-105 transition-all">
+                <Link
+                    to="/my-projects"
+                    className="bg-white text-lux-teal px-4 py-1.5 rounded-xl font-black text-[10px] uppercase shadow-md hover:scale-105 transition-all"
+                >
                     Mes projets
-                </button>
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -82,13 +83,44 @@ const PartnerDashboard = () => {
                             <AlertCircle size={18} />
                             <h3 className="font-black uppercase tracking-wider text-[10px]">Prochaine Réunion</h3>
                         </div>
-                        <p className="text-xl font-black leading-tight mb-4">
-                            {partnerData.events && partnerData.events.length > 0 ? partnerData.events[0].title : "Pas de réunion prévue"}
-                        </p>
-                        <div className="flex items-center gap-2 text-white/40 text-xs font-bold">
-                            <Clock size={14} />
-                            <span>{partnerData.events && partnerData.events.length > 0 ? new Date(partnerData.events[0].event_date).toLocaleDateString() : "--/--/----"}</span>
-                        </div>
+                        {(() => {
+                            const now = new Date();
+                            const upcomingEvents = (partnerData.events || [])
+                                .filter((e: any) => new Date(e.event_date) >= now)
+                                .sort((a: any, b: any) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+
+                            const nextMeeting = upcomingEvents[0];
+
+                            if (!nextMeeting) {
+                                return (
+                                    <>
+                                        <p className="text-xl font-black leading-tight mb-4">Pas de réunion prévue</p>
+                                        <div className="flex items-center gap-2 text-white/40 text-xs font-bold">
+                                            <Clock size={14} />
+                                            <span>--/--/----</span>
+                                        </div>
+                                    </>
+                                );
+                            }
+
+                            return (
+                                <>
+                                    <p className="text-xl font-black leading-tight mb-4">{nextMeeting.title}</p>
+                                    <div className="flex items-center gap-2 text-white/40 text-xs font-bold">
+                                        <Clock size={14} />
+                                        <span>
+                                            {new Date(nextMeeting.event_date).toLocaleDateString('fr-FR', {
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </span>
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </section>
                 </div>
 
@@ -104,14 +136,16 @@ const PartnerDashboard = () => {
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
                                         <span>Progression globale</span>
-                                        <span className="text-lux-slate">
-                                            {project.evolution_data ? project.evolution_data[project.evolution_data.length - 1].prog : 0}%
+                                        <span className="text-2xl font-black text-lux-blue">
+                                            {project.evolution_data && project.evolution_data.length > 0
+                                                ? project.evolution_data[project.evolution_data.length - 1].prog
+                                                : 0}%
                                         </span>
                                     </div>
                                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                         <motion.div
                                             initial={{ width: 0 }}
-                                            animate={{ width: `${project.evolution_data ? project.evolution_data[project.evolution_data.length - 1].prog : 0}%` }}
+                                            animate={{ width: `${project.evolution_data && project.evolution_data.length > 0 ? project.evolution_data[project.evolution_data.length - 1].prog : 0}%` }}
                                             className="h-full bg-lux-teal"
                                         ></motion.div>
                                     </div>
@@ -128,29 +162,6 @@ const PartnerDashboard = () => {
                             window.location.reload();
                         }}
                     />
-                    {/* Référentiel de rapport section */}
-                    <section className="glass p-8 rounded-[2.5rem] space-y-8">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl">
-                                <FileText size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-black text-lux-slate tracking-tight">Référentiel de rapport</h3>
-                                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Modèles de soumission pour vos projets</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-6">
-                            {partnerData.templates && partnerData.templates.map((template: any) => (
-                                <div key={template.id} className="bg-white border border-slate-100 p-6 rounded-3xl relative overflow-hidden group hover:border-lux-teal transition-all">
-                                    <div className="absolute top-0 right-0 p-4 text-lux-teal opacity-5 group-hover:opacity-10 transition-opacity">
-                                        <LayoutGrid size={60} />
-                                    </div>
-                                    <ReportTemplateView template={template} />
-                                </div>
-                            ))}
-                        </div>
-                    </section>
                 </div>
             </div>
         </div>

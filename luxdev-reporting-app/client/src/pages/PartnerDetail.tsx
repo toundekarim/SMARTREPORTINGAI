@@ -11,9 +11,15 @@ import {
     FileText,
     AlertCircle,
     Plus,
-    Calendar as CalendarIcon
+    Calendar as CalendarIcon,
+    Sparkles,
+    Brain,
+    Loader2,
+    X,
+    Trash2,
+    PlayCircle
 } from 'lucide-react';
-import AIReportSummarizer from '../components/AIReportSummarizer';
+import { motion, AnimatePresence } from 'framer-motion';
 
 
 const PartnerDetail = () => {
@@ -21,8 +27,12 @@ const PartnerDetail = () => {
     const [partner, setPartner] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+    const [selectedReportAnalysis, setSelectedReportAnalysis] = useState<any>(null);
+    const [isAnalyzingId, setIsAnalyzingId] = useState<number | null>(null);
+    const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
     const [isAddingProject, setIsAddingProject] = useState(false);
     const [newProject, setNewProject] = useState({ title: '', desc: '' });
+    const [playingReport, setPlayingReport] = useState<any>(null); // Using any because Report type might differ slightly in this view vs global
 
 
 
@@ -37,9 +47,53 @@ const PartnerDetail = () => {
         }
     };
 
+    const isMediaReport = (report: any) => {
+        if (!report.file_path) return false;
+        const ext = report.file_path.split('.').pop()?.toLowerCase();
+        return ['mp4', 'webm', 'mp3', 'wav', 'ogg'].includes(ext || '');
+    };
+
+    const getReportIcon = (report: any) => {
+        if (isMediaReport(report)) {
+            return <PlayCircle size={18} className="text-lux-blue" />;
+        }
+        return <FileText size={18} className="text-slate-400" />;
+    };
+
     useEffect(() => {
         fetchPartner();
     }, [id]);
+
+    const handleAnalyzeReport = async (reportId: number) => {
+        setIsAnalyzingId(reportId);
+        try {
+            const res = await axios.post(`http://localhost:3000/api/reports/${reportId}/analyze`);
+            setSelectedReportAnalysis(res.data);
+        } catch (err) {
+            console.error("Error analyzing report", err);
+            alert("L'analyse a échoué. Veuillez réessayer.");
+        } finally {
+            setIsAnalyzingId(null);
+        }
+    };
+
+    const handleDeleteReport = async (reportId: number, reportTitle: string) => {
+        if (!window.confirm(`Êtes-vous sûr de vouloir supprimer le rapport "${reportTitle}" ?`)) {
+            return;
+        }
+
+        setIsDeletingId(reportId);
+        try {
+            await axios.delete(`http://localhost:3000/api/reports/${reportId}`);
+            // Refresh partner data to update the reports list
+            fetchPartner();
+        } catch (err) {
+            console.error("Error deleting report", err);
+            alert("Erreur lors de la suppression du rapport.");
+        } finally {
+            setIsDeletingId(null);
+        }
+    };
 
     const handleAddProject = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -182,10 +236,7 @@ const PartnerDetail = () => {
                         </div>
                     </section>
 
-                    {/* AI Analysis Section for Admin */}
-                    <div className="mb-10">
-                        <AIReportSummarizer />
-                    </div>
+
 
                     {/* Standard Reports List */}
                     <section className="glass p-8 rounded-[2.5rem]">
@@ -198,17 +249,45 @@ const PartnerDetail = () => {
                             {partner.reports && partner.reports.length > 0 ? partner.reports.map((report: any) => (
                                 <div key={report.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-dotted border-slate-200">
                                     <div className="flex items-center gap-3">
-                                        <FileText size={18} className="text-slate-400" />
+                                        <div
+                                            className={`p-2 rounded-xl transition-colors ${isMediaReport(report) ? 'cursor-pointer hover:bg-lux-blue/10' : 'bg-slate-100'}`}
+                                            onClick={() => isMediaReport(report) && setPlayingReport(report)}
+                                        >
+                                            {getReportIcon(report)}
+                                        </div>
                                         <div>
                                             <p className="text-sm font-bold text-slate-600">{report.title}</p>
-                                            <p className="text-[10px] text-slate-400 uppercase font-medium">{report.project_title} • {new Date(report.deadline).toLocaleDateString()}</p>
+                                            <p className="text-[10px] text-slate-400 uppercase font-medium">
+                                                {report.project_title} • {report.submission_date ? `Reçu le ${new Date(report.submission_date).toLocaleDateString()}` : `Échéance : ${new Date(report.deadline).toLocaleDateString()}`}
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${report.status === 'validé' ? 'bg-emerald-100 text-emerald-600' :
-                                        report.status === 'en attente' ? 'bg-amber-100 text-amber-600' :
-                                            'bg-slate-100 text-slate-400'
-                                        }`}>
-                                        {report.status}
+                                    <div className="flex items-center gap-4">
+                                        <button
+                                            onClick={() => handleAnalyzeReport(report.id)}
+                                            disabled={isAnalyzingId === report.id}
+                                            className={`p-2 rounded-xl flex items-center gap-2 transition-all ${isAnalyzingId === report.id ? 'bg-slate-100 text-slate-400' : 'bg-lux-teal/10 text-lux-teal hover:bg-lux-teal hover:text-white shadow-sm'}`}
+                                        >
+                                            {isAnalyzingId === report.id ? (
+                                                <Loader2 size={14} className="animate-spin" />
+                                            ) : (
+                                                <Sparkles size={14} />
+                                            )}
+                                            <span className="text-[10px] font-black uppercase tracking-tight">Analyse IA</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleDeleteReport(report.id, report.title)}
+                                            disabled={isDeletingId === report.id}
+                                            className={`p-2 rounded-xl transition-all ${isDeletingId === report.id ? 'bg-slate-100 text-slate-400' : 'bg-red-50 text-red-500 hover:bg-red-500 hover:text-white'}`}
+                                            title="Supprimer le rapport"
+                                        >
+                                            {isDeletingId === report.id ? (
+                                                <Loader2 size={14} className="animate-spin" />
+                                            ) : (
+                                                <Trash2 size={14} />
+                                            )}
+                                        </button>
                                     </div>
                                 </div>
                             )) : (
@@ -221,6 +300,88 @@ const PartnerDetail = () => {
 
                 </div>
             </div>
+
+            {/* Analysis Result Modal */}
+            <AnimatePresence>
+                {selectedReportAnalysis && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-lux-slate/60 backdrop-blur-md animate-in fade-in duration-300">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="glass w-full max-w-2xl max-h-[90vh] overflow-y-auto p-10 rounded-[3rem] shadow-2xl relative border-lux-teal/20"
+                        >
+                            <button
+                                onClick={() => setSelectedReportAnalysis(null)}
+                                className="absolute top-8 right-8 p-3 bg-slate-100 text-slate-400 hover:text-lux-slate hover:bg-slate-200 rounded-2xl transition-all"
+                            >
+                                <X size={20} />
+                            </button>
+
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-16 h-16 bg-lux-teal text-white rounded-[1.5rem] flex items-center justify-center shadow-xl shadow-lux-teal/20">
+                                    <Brain size={32} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-lux-slate tracking-tight uppercase">Résumé du Rapport</h2>
+                                    <p className="text-[10px] font-black text-lux-teal uppercase tracking-[0.2em]">Intelligence Artificielle LuxDev</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-8">
+                                <div className="bg-slate-50 border border-slate-100 p-8 rounded-[2.5rem]">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest flex items-center gap-2">
+                                        <Sparkles size={14} className="text-lux-teal" />
+                                        Synthèse Analytique
+                                    </h4>
+                                    <p className="text-[15px] text-slate-600 leading-relaxed font-medium">
+                                        {selectedReportAnalysis.summary}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="p-6 bg-emerald-50/50 border border-emerald-100 rounded-[2rem]">
+                                        <h4 className="text-[10px] font-black uppercase text-emerald-600 mb-4 tracking-widest">Réalisations Clés</h4>
+                                        <ul className="space-y-3">
+                                            {selectedReportAnalysis.achievements?.map((a: string, i: number) => (
+                                                <li key={i} className="text-xs text-slate-500 font-bold flex items-start gap-2">
+                                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0" />
+                                                    {a}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    <div className="p-6 bg-amber-50/50 border border-amber-100 rounded-[2rem]">
+                                        <h4 className="text-[10px] font-black uppercase text-amber-600 mb-4 tracking-widest">Risques Détectés</h4>
+                                        <ul className="space-y-3">
+                                            {selectedReportAnalysis.risks?.map((r: string, i: number) => (
+                                                <li key={i} className="text-xs text-slate-500 font-bold flex items-start gap-2">
+                                                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-1.5 shrink-0" />
+                                                    {r}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div className="bg-lux-blue/5 border border-lux-blue/10 p-6 rounded-[2rem]">
+                                    <h4 className="text-[10px] font-black uppercase text-lux-blue mb-3 tracking-widest">Recommandations Stratégiques</h4>
+                                    <p className="text-xs text-lux-blue font-black italic">
+                                        "{selectedReportAnalysis.recommendations?.[0]}"
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={() => setSelectedReportAnalysis(null)}
+                                    className="w-full py-5 bg-lux-slate text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] transition-all"
+                                >
+                                    Fermer l'analyse
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* Project Modal */}
             {isProjectModalOpen && (
@@ -268,6 +429,60 @@ const PartnerDetail = () => {
                     </div>
                 </div>
             )}
+
+            {/* Media Player Modal */}
+            <AnimatePresence>
+                {playingReport && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="w-full max-w-4xl relative"
+                        >
+                            <button
+                                onClick={() => setPlayingReport(null)}
+                                className="absolute -top-12 right-0 p-2 text-white hover:text-lux-teal transition-colors flex items-center gap-2"
+                            >
+                                <span className="text-xs font-black uppercase">Fermer</span>
+                                <X size={24} />
+                            </button>
+
+                            <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                                {playingReport.file_path && (playingReport.file_path.endsWith('.mp3') || playingReport.file_path.endsWith('.wav')) ? (
+                                    <div className="p-10 flex flex-col items-center justify-center bg-zinc-900">
+                                        <div className="w-24 h-24 bg-lux-teal/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                                            <PlayCircle size={48} className="text-lux-teal" />
+                                        </div>
+                                        <h3 className="text-white font-bold text-xl mb-6">{playingReport.title}</h3>
+                                        <audio
+                                            controls
+                                            autoPlay
+                                            className="w-full"
+                                            src={`http://localhost:3000/${playingReport.file_path}`}
+                                        >
+                                            Votre navigateur ne supporte pas la lecture audio.
+                                        </audio>
+                                    </div>
+                                ) : (
+                                    <video
+                                        controls
+                                        autoPlay
+                                        className="w-full aspect-video bg-black"
+                                        src={`http://localhost:3000/${playingReport.file_path}`}
+                                    >
+                                        Votre navigateur ne supporte pas la lecture vidéo.
+                                    </video>
+                                )}
+                            </div>
+
+                            <div className="mt-4 text-center">
+                                <p className="text-white/60 text-sm font-medium">{playingReport.title}</p>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

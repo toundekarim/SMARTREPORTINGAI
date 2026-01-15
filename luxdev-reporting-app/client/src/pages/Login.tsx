@@ -80,7 +80,21 @@ const Login = () => {
                                 <span className="text-xs font-bold text-lux-teal">Admin LuxDev</span>
                             </button>
                             <button
-                                onClick={() => login('partner')}
+                                onClick={async () => {
+                                    try {
+                                        const res = await fetch('http://localhost:3000/api/partners');
+                                        const partners = await res.json();
+                                        if (partners.length > 0) {
+                                            // Login with the ID of the first found partner
+                                            login('partner', partners[0].id);
+                                        } else {
+                                            alert("Aucun partenaire créé en base de données.");
+                                        }
+                                    } catch (e) {
+                                        // Fallback to default if API fails
+                                        login('partner');
+                                    }
+                                }}
                                 className="flex flex-col items-center gap-2 p-4 bg-lux-blue/5 border border-lux-blue/10 rounded-2xl hover:bg-lux-blue/10 transition-colors group"
                             >
                                 <Sparkles className="text-lux-blue group-hover:scale-110 transition-transform" size={24} />

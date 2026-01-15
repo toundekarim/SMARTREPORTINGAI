@@ -16,7 +16,6 @@ const Sidebar = () => {
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/partners', label: 'Partenaires', icon: Users },
         { to: '/events', label: 'Calendrier', icon: Calendar },
-        { to: '/reports-all', label: 'Tous les rapports', icon: FileText },
     ];
 
     const partnerLinks = [

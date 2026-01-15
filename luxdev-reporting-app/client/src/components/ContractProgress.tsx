@@ -8,9 +8,25 @@ interface Props {
 }
 
 const ContractProgress: React.FC<Props> = ({ startDate, endDate }) => {
+    if (!startDate || !endDate) {
+        return (
+            <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dates de contrat non définies</p>
+            </div>
+        );
+    }
+
     const start = new Date(startDate);
     const end = new Date(endDate);
     const today = new Date();
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return (
+            <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Format de date invalide</p>
+            </div>
+        );
+    }
 
     // Reset usage of time to avoid discrepancies
     start.setHours(0, 0, 0, 0);

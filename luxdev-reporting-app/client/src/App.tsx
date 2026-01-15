@@ -9,7 +9,6 @@ import PartnerDetail from './pages/PartnerDetail';
 import ProjectDetail from './pages/ProjectDetail';
 import SharedEvents from './pages/SharedEvents';
 import PartnerDashboard from './pages/PartnerDashboard';
-import ReportsAll from './pages/ReportsAll';
 import MyProjects from './pages/MyProjects';
 import { useAuth } from './context/AuthContext';
 
@@ -43,7 +42,7 @@ function App() {
             <Route path="/partner-dashboard" element={<PartnerDashboard />} />
             <Route path="/my-projects" element={<MyProjects />} />
 
-            <Route path="/reports-all" element={<ReportsAll />} />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

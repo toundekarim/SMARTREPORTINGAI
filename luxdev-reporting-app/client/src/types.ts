@@ -16,6 +16,7 @@ export interface Partner {
     description: string;
     meeting_frequency?: 'aucune' | 'hebdomadaire' | 'mensuelle' | 'annuelle';
     active_projects?: number;
+    country?: string;
 }
 
 export interface Project {
@@ -37,6 +38,7 @@ export interface Report {
     submission_date: string;
     reviewer?: string;
     status: 'en attente' | 'validé' | 'brouillon' | 'late';
+    file_path?: string;
 }
 
 export interface CalendarEvent {

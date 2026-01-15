@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Building2, ChevronRight, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Partner } from '../types';
 
 const Partners = () => {
+    const [searchParams] = useSearchParams();
+    const query = searchParams.get('q') || '';
+
     const [partners, setPartners] = useState<Partner[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -81,6 +84,12 @@ const Partners = () => {
         }
     };
 
+    const filteredPartners = partners.filter(p =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        (p.description && p.description.toLowerCase().includes(query.toLowerCase())) ||
+        (p.country && p.country.toLowerCase().includes(query.toLowerCase()))
+    );
+
     if (loading) return <div className="p-8 text-center font-bold text-lux-slate animate-pulse">Chargement des partenaires...</div>;
 
     return (
@@ -98,8 +107,18 @@ const Partners = () => {
                 </button>
             </div>
 
+            {filteredPartners.length === 0 && !loading && (
+                <div className="glass p-20 text-center rounded-[2.5rem]">
+                    <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-slate-300">
+                        <Building2 size={40} />
+                    </div>
+                    <h3 className="text-xl font-black text-lux-slate mb-2">Aucun partenaire trouvé</h3>
+                    <p className="text-slate-400 font-medium">Réessayez avec un autre nom ou pays.</p>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-                {partners.map((partner) => (
+                {filteredPartners.map((partner) => (
                     <motion.div
                         whileHover={{ y: -5 }}
                         key={partner.id}

@@ -7,9 +7,9 @@ async function listModels() {
         // There isn't a direct listModels in the client SDK like this usually, 
         // but it might be in the rest api.
         // Let's just try to call gemini-1.5-flash with a tiny prompt.
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-        const result = await model.generateContent("Hi");
-        console.log("Success:", result.response.text());
+        const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+        const result = await model.generateContent("Bonjour, réponds juste 'OK' si tu me reçois.");
+        console.log("✅ Gemini API fonctionne ! Réponse:", result.response.text());
     } catch (e) {
         console.error("Error:", e.message);
         if (e.response) {
