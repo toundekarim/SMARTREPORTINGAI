@@ -37,8 +37,11 @@ const ProjectDetail = () => {
                 setPartner(partnerRes.data);
 
                 // Filter reports for this project specifically if API doesn't filter perfectly
-                const relevantReports = reportsRes.data.filter((r: any) => r.project_id === parseInt(id!));
-                console.log("Project reports fetched:", relevantReports);
+                // Filter reports for this project specifically if API doesn't filter perfectly
+                const relevantReports = reportsRes.data.filter((r: any) => {
+                    const match = r.project_id == id; // Loose equality to catch string/number diffs
+                    return match;
+                });
                 setProjectReports(relevantReports);
             }
 
@@ -62,8 +65,15 @@ const ProjectDetail = () => {
         console.log("Found deadlines:", deadlines);
 
         if (deadlines.length === 0) {
-            console.log("No deadlines found, using evolution_data:", project.evolution_data);
-            return project.evolution_data || [];
+            // Check if evolution_data exists and map it to expected format
+            if (project.evolution_data && Array.isArray(project.evolution_data)) {
+                return project.evolution_data.map((d: any) => ({
+                    date: d.date || '',
+                    expected: d.prog || 0,
+                    actual: d.prog || 0
+                }));
+            }
+            return [];
         }
 
         const createdDate = project.created_at || new Date().toISOString();
@@ -71,7 +81,15 @@ const ProjectDetail = () => {
         const end = Math.max(...deadlines);
 
         if (isNaN(start) || isNaN(end) || end <= start) {
-            return project.evolution_data || [];
+            // Fallback to evolution_data mapping
+            if (project.evolution_data && Array.isArray(project.evolution_data)) {
+                return project.evolution_data.map((d: any) => ({
+                    date: d.date || '',
+                    expected: d.prog || 0,
+                    actual: d.prog || 0
+                }));
+            }
+            return [];
         }
 
         // Generate 5 points for the graph
@@ -85,13 +103,17 @@ const ProjectDetail = () => {
             // Calculate theoretical progress at this point in time
             // If the point is in the past, prog is determined by time elapsed
             // If the point is in the future, it's a projection
-            let prog = Math.round(((pointTime - start) / duration) * 100);
-            if (prog < 0) prog = 0;
-            if (prog > 100) prog = 100;
+            let val = Math.round(((pointTime - start) / duration) * 100);
+            if (val < 0) val = 0;
+            if (val > 100) val = 100;
+
+            // For now, assume Actual follows Expected (On Track)
+            // Ideally we would fetch 'real' progress from completed reports here
 
             points.push({
                 date: pointDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
-                prog: prog
+                expected: val,
+                actual: val
             });
         }
         return points;

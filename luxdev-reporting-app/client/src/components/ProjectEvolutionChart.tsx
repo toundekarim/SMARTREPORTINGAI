@@ -46,18 +46,23 @@ const ProjectEvolutionChart: React.FC<Props> = ({ data }) => {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center px-2">
-                <div className="flex items-center gap-4">
+            <div className="flex justify-between items-start px-2">
+                <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
-                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Attendu</p>
+                        <span className="w-8 h-1 bg-slate-300 rounded-full border border-slate-100 border-dashed"></span>
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">Progression Attendue</p>
+                            <p className="text-[9px] text-slate-400 font-medium">Selon les échéances fixées</p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-lux-blue shadow-lg shadow-lux-blue/20"></span>
-                        <p className="text-[10px] font-black uppercase text-lux-slate tracking-widest">Réel</p>
+                        <span className="w-8 h-1 bg-gradient-to-r from-lux-blue to-lux-teal rounded-full shadow-sm"></span>
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-lux-slate tracking-widest leading-none">Progression Réelle</p>
+                            <p className="text-[9px] text-slate-400 font-medium">Basé sur les rapports soumis</p>
+                        </div>
                     </div>
                 </div>
-                <span className="text-[10px] font-bold text-lux-teal bg-lux-teal/10 px-2 py-0.5 rounded-full">Automatique</span>
             </div>
 
             <div className="relative bg-white/50 backdrop-blur-sm rounded-[2rem] p-6 border border-slate-100 shadow-inner">

@@ -112,7 +112,7 @@ const Layout = () => {
                                     {user?.role === 'admin' ? 'Monitoring LuxDev' : 'Espace Partenaire'}
                                 </h2>
                                 <h1 className="text-3xl font-black text-lux-slate tracking-tight">
-                                    Bonjour, {user?.name.split(' ')[0]} 👋
+                                    Bonjour, {user?.role === 'partner' ? user?.name : user?.name.split(' ')[0]} 👋
                                 </h1>
                             </>
                         ) : (

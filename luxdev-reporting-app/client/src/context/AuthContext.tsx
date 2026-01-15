@@ -3,7 +3,7 @@ import { User } from '../types';
 
 interface AuthContextType {
     user: User | null;
-    login: (role: 'admin' | 'partner', partnerId?: number) => void;
+    login: (role: 'admin' | 'partner', partnerId?: number, name?: string) => void;
     logout: () => void;
     isAuthenticated: boolean;
 }
@@ -16,12 +16,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return saved ? JSON.parse(saved) : null;
     });
 
-    const login = (role: 'admin' | 'partner', partnerId?: number) => {
+    const login = (role: 'admin' | 'partner', partnerId?: number, name?: string) => {
         const mockUser: User = {
             id: role === 'admin' ? 1 : 2,
             email: role === 'admin' ? 'admin@luxdev.lu' : 'partner@alpha.lu',
             role: role,
-            name: role === 'admin' ? 'Admin LuxDev' : 'Partenaire Alpha',
+            name: name || (role === 'admin' ? 'Admin LuxDev' : 'Partenaire Alpha'),
             partner_id: role === 'partner' ? (partnerId || 19) : undefined
         };
         setUser(mockUser);

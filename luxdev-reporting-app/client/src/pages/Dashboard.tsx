@@ -98,18 +98,10 @@ const Dashboard = () => {
                         <ProjectEvolutionChart data={globalStats} />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-6 mt-10 pt-8 border-t border-slate-100/50">
-                        <div>
-                            <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Taux de succès</p>
-                            <p className="text-lg font-black text-lux-teal">94%</p>
-                        </div>
+                    <div className="mt-10 pt-8 border-t border-slate-100/50 flex">
                         <div>
                             <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Rapports validés</p>
-                            <p className="text-lg font-black text-lux-blue">128</p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Impact Global</p>
-                            <p className="text-lg font-black text-amber-500">Lux+ 2.4</p>
+                            <p className="text-lg font-black text-lux-blue">{summary.reportsValidated || 0}</p>
                         </div>
                     </div>
                 </section>

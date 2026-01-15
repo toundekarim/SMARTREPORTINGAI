@@ -519,39 +519,60 @@ app.get('/api/stats/global', async (req, res) => {
         ]);
     }
     try {
+        // 1. Determine timeline range
+        // Start: Earliest project creation or default to 6 months ago
+        const startResult = await pool.query('SELECT MIN(created_at) as min_date FROM projects');
+        let startDate = new Date();
+        if (startResult.rows[0].min_date) {
+            startDate = new Date(startResult.rows[0].min_date);
+        } else {
+            startDate.setMonth(startDate.getMonth() - 6);
+        }
+        // Normalize to start of month
+        startDate.setDate(1);
+
+        // End: Latest deadline/submission or at least 3 months ahead
+        const endResult = await pool.query('SELECT MAX(deadline) as max_deadline, MAX(submission_date) as max_sub FROM reports');
+        let endDate = new Date();
+        const maxDeadline = endResult.rows[0].max_deadline ? new Date(endResult.rows[0].max_deadline) : null;
+        const maxSub = endResult.rows[0].max_sub ? new Date(endResult.rows[0].max_sub) : null;
+
+        if (maxDeadline && maxDeadline > endDate) endDate = maxDeadline;
+        if (maxSub && maxSub > endDate) endDate = maxSub;
+        // Ensure at least some future visibility
+        const futureBuffer = new Date();
+        futureBuffer.setMonth(futureBuffer.getMonth() + 3);
+        if (endDate < futureBuffer) endDate = futureBuffer;
+
+        // 2. Fetch all Reports
         const reportsResult = await pool.query('SELECT deadline, submission_date FROM reports');
         const reports = reportsResult.rows;
-        const totalReports = reports.length || 1; // Avoid division by zero
+        const totalReports = reports.length || 1;
 
-        // Collect all relevant dates (deadlines and submissions)
-        const dates = new Set();
-        reports.forEach(r => {
-            if (r.deadline) dates.add(r.deadline.substring(0, 7)); // YYYY-MM
-            if (r.submission_date) dates.add(r.submission_date.substring(0, 7));
-        });
+        // 3. Generate Timeline & Calculate Stats
+        const stats = [];
+        let currentDate = new Date(startDate);
 
-        // Convert to sorted array
-        const sortedDates = Array.from(dates).sort();
+        while (currentDate <= endDate) {
+            const dateStr = currentDate.toISOString().slice(0, 7); // YYYY-MM
 
-        // Calculate cumulative progress for each month
-        const stats = sortedDates.map(dateStr => {
-            const date = new Date(dateStr + '-01');
-            // End of month approximation for comparison
-            // Actually, simple string comparison YYYY-MM works well for "by end of month" logic if standardized
+            // Comparison string for "End of Month" logic
+            // We count everything up to this month inclusive
 
             const expectedCount = reports.filter(r => r.deadline && r.deadline.substring(0, 7) <= dateStr).length;
             const actualCount = reports.filter(r => r.submission_date && r.submission_date.substring(0, 7) <= dateStr).length;
 
-            return {
-                date: new Date(dateStr).toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase(),
-                rawDate: dateStr, // Keep for sorting if needed
+            stats.push({
+                date: currentDate.toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase(),
+                rawDate: dateStr,
                 expected: Math.round((expectedCount / totalReports) * 100),
                 actual: Math.round((actualCount / totalReports) * 100)
-            };
-        });
+            });
 
-        // Limit to reasonable number of points if too many (e.g. last 12 months) purely for UI?
-        // For now return all sorted
+            // Next month
+            currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+
         res.json(stats);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -581,11 +602,14 @@ app.get('/api/stats/summary', async (req, res) => {
             AND deadline >= date('now')
         `);
 
+        const validatedReports = await pool.query('SELECT COUNT(*) as count FROM reports WHERE submission_date IS NOT NULL');
+
         res.json({
             partnersCount: parseInt(partners.rows[0].count),
             projectsCount: parseInt(projects.rows[0].count),
             reportsPending: parseInt(reports.rows[0].count),
-            alertsCount: parseInt(alerts.rows[0].count)
+            alertsCount: parseInt(alerts.rows[0].count),
+            reportsValidated: parseInt(validatedReports.rows[0].count)
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -780,9 +804,9 @@ app.get('/api/reports', async (req, res) => {
         const result = await pool.query(`
             SELECT r.*, p.name as partner_name, prj.title as project_title 
             FROM reports r 
-            JOIN partners p ON r.partner_id = p.id 
             JOIN projects prj ON r.project_id = prj.id 
-            ORDER BY submission_date DESC
+            JOIN partners p ON prj.partner_id = p.id
+            ORDER BY r.submission_date DESC
         `);
         res.json(result.rows);
     } catch (err) {
