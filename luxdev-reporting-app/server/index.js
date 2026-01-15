@@ -380,14 +380,17 @@ app.delete('/api/partners/:id', async (req, res) => {
     }
 
     try {
-        // Cascade delete in database
-        // First, get all reports to delete their files (reports are linked via projects)
+        // Start transaction
+        await pool.query('BEGIN');
+
+        // Get all reports to delete their files (reports are linked via projects)
+        // We do this BEFORE deleting the data
         const reportsResult = await pool.query(
             'SELECT r.file_path FROM reports r JOIN projects p ON r.project_id = p.id WHERE p.partner_id = $1',
             [id]
         );
 
-        // Delete files
+        // Delete files from filesystem
         reportsResult.rows.forEach(report => {
             if (report.file_path && fs.existsSync(report.file_path)) {
                 try {
@@ -399,24 +402,17 @@ app.delete('/api/partners/:id', async (req, res) => {
             }
         });
 
-        // Delete all associated data (cascade)
-        // Delete reports first (they reference projects)
-        await pool.query(
-            'DELETE FROM reports WHERE project_id IN (SELECT id FROM projects WHERE partner_id = $1)',
-            [id]
-        );
-        // Delete report templates
-        await pool.query('DELETE FROM report_templates WHERE partner_id = $1', [id]);
-        // Delete events
-        await pool.query('DELETE FROM events WHERE partner_id = $1', [id]);
-        // Delete projects
-        await pool.query('DELETE FROM projects WHERE partner_id = $1', [id]);
-
-        // Finally delete the partner
+        // Delete the partner. 
+        // Thanks to ON DELETE CASCADE defined in schema (both SQLite and Postgres), 
+        // this will automatically delete related projects, reports, events, and templates.
         const result = await pool.query('DELETE FROM partners WHERE id = $1 RETURNING *', [id]);
+
         if (result.rowCount === 0) {
+            await pool.query('ROLLBACK');
             return res.status(404).json({ error: "Partenaire non trouvé" });
         }
+
+        await pool.query('COMMIT');
 
         console.log(`Partner ${id} and all associated data deleted successfully`);
         res.json({
@@ -424,6 +420,7 @@ app.delete('/api/partners/:id', async (req, res) => {
             deleted: result.rows[0]
         });
     } catch (err) {
+        await pool.query('ROLLBACK');
         console.error("Error deleting partner:", err);
         res.status(500).json({ error: err.message });
     }

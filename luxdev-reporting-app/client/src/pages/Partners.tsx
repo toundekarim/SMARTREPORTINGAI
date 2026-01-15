@@ -77,9 +77,10 @@ const Partners = () => {
             try {
                 await axios.delete(`http://localhost:3000/api/partners/${id}`);
                 setPartners(partners.filter(p => p.id !== id));
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Error deleting partner", err);
-                alert("Erreur lors de la suppression du partenaire.");
+                const errorMessage = err.response?.data?.error || "Erreur lors de la suppression du partenaire.";
+                alert(errorMessage);
             }
         }
     };
