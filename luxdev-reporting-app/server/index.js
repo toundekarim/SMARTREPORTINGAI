@@ -8,6 +8,7 @@ const aiService = require('./services/aiService');
 const multer = require('multer');
 const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
+const sqlite3 = require('sqlite3').verbose();
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -62,15 +63,12 @@ app.post('/api/ai/generate-template', async (req, res) => {
 });
 
 // Mock Data Fallback
-const MOCK_PARTNERS = [
+let MOCK_PARTNERS = [
     { id: 1, name: 'Alpha Solutions', contact_email: 'contact@alpha.lu', description: 'Partenaire technologique spécialisé en infrastructure.', contract_start_date: '2024-01-01', contract_end_date: '2027-01-01' },
     { id: 2, name: 'Green Energy Co', contact_email: 'info@green.lu', description: 'Consultants en développement durable.', contract_start_date: '2023-06-01', contract_end_date: '2025-06-01' }
 ];
 
-const MOCK_PROJECTS = [
-    { id: 101, partner_id: 1, title: 'Digitalisation Phase 1', description: 'Mise en place de serveurs cloud.', status: 'active', evolution_data: [{ "date": "2024-01", "prog": 10 }, { "date": "2024-03", "prog": 35 }, { "date": "2024-06", "prog": 60 }, { "date": "2024-09", "prog": 85 }], created_at: '2024-01-10' },
-    { id: 102, partner_id: 2, title: 'Audit Écomobilité', description: 'Analyse du parc automobile du partenaire.', status: 'active', evolution_data: [{ "date": "2023-06", "prog": 5 }, { "date": "2023-12", "prog": 45 }, { "date": "2024-06", "prog": 90 }], created_at: '2023-06-15' }
-];
+const MOCK_PROJECTS = [];
 
 const MOCK_TEMPLATES = [
     { id: 1, partner_id: 1, title: 'Template de Rapport Technique Infra', requires_video: true, requires_audio: true, requires_text: true, text_formats: 'Word, PDF, Texte Simple', instructions: 'Merci d\'inclure une vidéo de démonstration de l\'infrastructure, un audio explicatif des choix techniques et le document PDF détaillé.' },
@@ -78,32 +76,95 @@ const MOCK_TEMPLATES = [
 ];
 
 const MOCK_REPORTS = [
-    { id: 1001, project_id: 101, partner_id: 1, title: 'Rapport Mensuel Janvier - Digitalisation', status: 'validé', submission_date: '2025-01-05', reviewer: 'Jean Dupont' },
-    { id: 1002, project_id: 101, partner_id: 1, title: 'Rapport Mensuel Février - Digitalisation', status: 'en attente', submission_date: '2025-02-02', reviewer: 'Jean Dupont' },
-    { id: 1003, project_id: 102, partner_id: 2, title: 'Audit Mi-parcours - Écomobilité', status: 'validé', submission_date: '2024-12-15', reviewer: 'Marie Curie' },
-    { id: 1004, project_id: 102, partner_id: 2, title: 'Rapport Trimestriel Q1 - Écomobilité', status: 'brouillon', submission_date: '2025-01-20', reviewer: 'Marie Curie' }
+    { id: 1001, project_id: 101, partner_id: 1, title: 'Rapport Mensuel Janvier - Digitalisation', status: 'validé', submission_date: '2026-01-05', reviewer: 'Jean Dupont' },
+    { id: 1002, project_id: 101, partner_id: 1, title: 'Rapport Mensuel Février - Digitalisation', status: 'en attente', submission_date: '2026-02-02', reviewer: 'Jean Dupont' },
+    { id: 1003, project_id: 102, partner_id: 2, title: 'Audit Mi-parcours - Écomobilité', status: 'validé', submission_date: '2025-12-15', reviewer: 'Marie Curie' },
+    { id: 1004, project_id: 102, partner_id: 2, title: 'Rapport Trimestriel Q1 - Écomobilité', status: 'brouillon', submission_date: '2026-01-20', reviewer: 'Marie Curie' }
 ];
 
 const MOCK_EVENTS = [
-    { id: 1, partner_id: 1, title: 'Réunion de Pilotage', description: 'Discussion sur la phase 2 du projet.', event_date: '2025-02-15T10:00:00', type: 'meeting' },
-    { id: 2, partner_id: 2, title: 'Présentation Audit', description: 'Restitution finale de l\'audit écomobilité.', event_date: '2025-02-20T14:30:00', type: 'meeting' },
-    { id: 3, partner_id: 1, title: 'Deadline Rapport Trimestriel', description: 'Échéance pour la soumission du rapport Q1.', event_date: '2025-03-31T23:59:59', type: 'deadline' }
+    { id: 1, partner_id: 1, title: 'Réunion de Pilotage', description: 'Discussion sur la phase 2 du projet.', event_date: '2026-02-15T10:00:00', type: 'meeting' },
+    { id: 2, partner_id: 2, title: 'Présentation Audit', description: 'Restitution finale de l\'audit écomobilité.', event_date: '2026-02-20T14:30:00', type: 'meeting' },
+    { id: 3, partner_id: 1, title: 'Deadline Rapport Trimestriel', description: 'Échéance pour la soumission du rapport Q1.', event_date: '2026-03-31T23:59:59', type: 'deadline' }
 ];
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres'
-});
+let pool;
+let sqliteDb;
+const dbType = process.env.DB_TYPE || 'postgres';
+
+if (dbType === 'sqlite') {
+    const dbPath = path.join(__dirname, 'database.sqlite');
+    sqliteDb = new sqlite3.Database(dbPath);
+    sqliteDb.run('PRAGMA foreign_keys = ON');
+
+    // Wrapper to mimic pg-style pool.query
+    pool = {
+        query: (text, params = []) => {
+            const sqliteText = text.replace(/\$(\d+)/g, '?');
+            return new Promise((resolve, reject) => {
+                const isSelect = sqliteText.trim().toLowerCase().startsWith('select');
+                const hasReturning = sqliteText.toLowerCase().includes('returning');
+
+                if (isSelect || hasReturning) {
+                    sqliteDb.all(sqliteText, params, (err, rows) => {
+                        if (err) reject(err);
+                        else resolve({ rows, rowCount: rows.length });
+                    });
+                } else {
+                    sqliteDb.run(sqliteText, params, function (err) {
+                        if (err) reject(err);
+                        else resolve({ rows: [], rowCount: this.changes, lastID: this.lastID });
+                    });
+                }
+            });
+        }
+    };
+} else {
+    pool = new Pool({
+        connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres'
+    });
+}
 
 let useMock = false;
 
 // Init DB
 const initDb = async () => {
     try {
-        const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-        await pool.query(schema);
-        console.log('Database initialized successfully');
+        const schemaFile = dbType === 'sqlite' ? 'schema_sqlite.sql' : 'schema.sql';
+        const schema = fs.readFileSync(path.join(__dirname, schemaFile), 'utf8');
+
+        // Check if database is already seeded
+        const checkResult = await pool.query("SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='partners'");
+        const tableExists = checkResult.rows[0].count > 0;
+
+        let alreadyHasData = false;
+        if (tableExists) {
+            const partnerCount = await pool.query("SELECT count(*) as count FROM partners");
+            alreadyHasData = partnerCount.rows[0].count > 0;
+        }
+
+        if (!alreadyHasData) {
+            console.log('Database empty, seeding...');
+            if (dbType === 'sqlite') {
+                const statements = schema.split(';').filter(s => s.trim() !== '');
+                for (let statement of statements) {
+                    await pool.query(statement);
+                }
+            } else {
+                await pool.query(schema);
+            }
+        } else {
+            // Just ensure tables exist (CREATE TABLE IF NOT EXISTS parts)
+            // For simplicity in this demo, if it has data we assume schema is okay
+            // or we could run only the CREATE TABLE parts.
+            console.log('Database already has data, skipping seed.');
+        }
+
+        console.log(`Database (${dbType}) ready`);
+        useMock = false;
     } catch (err) {
-        console.error('Database connection failed or schema error. Using Mock Mode.');
+        console.error('Database connection failed:', err.message);
+        console.log('Mode Simulation activé (Pas de base de données détectée). Tout fonctionne normalement.');
         useMock = true;
     }
 };
@@ -126,21 +187,178 @@ app.get('/api/partners/:id', async (req, res) => {
     if (useMock) {
         const partner = MOCK_PARTNERS.find(p => p.id === id);
         const projects = MOCK_PROJECTS.filter(p => p.partner_id === id);
-        const templates = MOCK_TEMPLATES.filter(t => t.partner_id === id);
-        return res.json({ ...partner, projects, templates, events: [] });
+        const staticTemplates = MOCK_TEMPLATES.filter(t => t.partner_id === id);
+
+        const templates = staticTemplates;
+        const reports = MOCK_REPORTS.filter(r => r.partner_id === id);
+        return res.json({ ...partner, projects, templates, reports, events: [] });
     }
     try {
-        const partner = await pool.query('SELECT * FROM partners WHERE id = $1', [id]);
+        const partnerRes = await pool.query('SELECT * FROM partners WHERE id = $1', [id]);
+        if (partnerRes.rows.length === 0) {
+            return res.status(404).json({ error: "Partenaire non trouvé" });
+        }
+
         const projects = await pool.query('SELECT * FROM projects WHERE partner_id = $1', [id]);
         const events = await pool.query('SELECT * FROM events WHERE partner_id = $1', [id]);
         const templates = await pool.query('SELECT * FROM report_templates WHERE partner_id = $1', [id]);
+        const reports = await pool.query('SELECT r.*, p.title as project_title FROM reports r JOIN projects p ON r.project_id = p.id WHERE p.partner_id = $1 ORDER BY r.submission_date DESC', [id]);
+
+        // Parse JSON fields for SQLite
+        const parsedProjects = projects.rows.map(p => {
+            if (p.evolution_data && typeof p.evolution_data === 'string') {
+                try { p.evolution_data = JSON.parse(p.evolution_data); } catch (e) { }
+            }
+            return p;
+        });
+
+        const parsedTemplates = templates.rows.map(t => {
+            if (t.structure && typeof t.structure === 'string') {
+                try { t.structure = JSON.parse(t.structure); } catch (e) { }
+            }
+            return t;
+        });
 
         res.json({
-            ...partner.rows[0],
-            projects: projects.rows,
+            ...partnerRes.rows[0],
+            projects: parsedProjects,
             events: events.rows,
-            templates: templates.rows
+            templates: parsedTemplates,
+            reports: reports.rows
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/partners', async (req, res) => {
+    console.log("POST /api/partners hit with:", req.body);
+    const { name, contact_email, description, contract_start_date, contract_end_date, country, meeting_frequency } = req.body;
+    if (useMock) {
+        const newPartner = {
+            id: MOCK_PARTNERS.length + 1,
+            name,
+            contact_email,
+            description,
+            country: country || 'Luxembourg',
+            meeting_frequency: meeting_frequency || 'mensuelle',
+            contract_start_date: contract_start_date || new Date().toISOString().split('T')[0],
+            contract_end_date: contract_end_date || new Date(Date.now() + 31536000000).toISOString().split('T')[0]
+        };
+        MOCK_PARTNERS.push(newPartner);
+        return res.json(newPartner);
+    }
+    try {
+        const result = await pool.query(
+            'INSERT INTO partners (name, contact_email, description, contract_start_date, contract_end_date, country, meeting_frequency) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [name, contact_email, description, contract_start_date, contract_end_date, country || 'Luxembourg', meeting_frequency || 'mensuelle']
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/partners/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+    console.log(`DELETE /api/partners/${id} hit`);
+
+    if (useMock) {
+        const index = MOCK_PARTNERS.findIndex(p => p.id === id);
+        if (index !== -1) {
+            const deleted = MOCK_PARTNERS.splice(index, 1);
+            return res.json(deleted[0]);
+        }
+        // If not found in simple mock array, checking if it was a persistent mock
+        return res.status(404).json({ error: "Partenaire non trouvé dans les données mock" });
+    }
+
+    try {
+        const result = await pool.query('DELETE FROM partners WHERE id = $1 RETURNING *', [id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Partenaire non trouvé" });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/projects/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (useMock) {
+        const project = MOCK_PROJECTS.find(p => p.id === id);
+        if (project) return res.json(project);
+        return res.status(404).json({ error: "Projet non trouvé" });
+    }
+    try {
+        const result = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "Projet non trouvé" });
+
+        let project = result.rows[0];
+        if (project.evolution_data && typeof project.evolution_data === 'string') {
+            try {
+                project.evolution_data = JSON.parse(project.evolution_data);
+            } catch (e) {
+                console.error("Error parsing evolution_data", e);
+            }
+        }
+
+        res.json(project);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/projects', async (req, res) => {
+    console.log("POST /api/projects hit with:", req.body);
+    const { partner_id, title, description } = req.body;
+    if (useMock) {
+        const newProject = {
+            id: 100 + MOCK_PROJECTS.length + 1,
+            partner_id: parseInt(partner_id),
+            title,
+            description,
+            status: 'active',
+            report_template_type: null,
+            evolution_data: [{ "date": new Date().toISOString().split('T')[0].substring(0, 7), "prog": 0 }],
+            created_at: new Date().toISOString()
+        };
+        MOCK_PROJECTS.push(newProject);
+        return res.json(newProject);
+    }
+    try {
+        const result = await pool.query(
+            'INSERT INTO projects (partner_id, title, description, evolution_data) VALUES ($1, $2, $3, $4) RETURNING *',
+            [partner_id, title, description, JSON.stringify([{ "date": new Date().toISOString().split('T')[0].substring(0, 7), "prog": 0 }])]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/projects/:id/template', async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { type } = req.body; // 'narrative' or 'financial'
+    console.log(`PUT /api/projects/${id}/template hit with type:`, type);
+
+    if (useMock) {
+        const project = MOCK_PROJECTS.find(p => p.id === id);
+        if (project) {
+            project.report_template_type = type;
+            return res.json(project);
+        }
+        return res.status(404).json({ error: "Projet non trouvé" });
+    }
+
+    try {
+        const result = await pool.query(
+            'UPDATE projects SET report_template_type = $1 WHERE id = $2 RETURNING *',
+            [type, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: "Projet non trouvé" });
+        res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -148,22 +366,202 @@ app.get('/api/partners/:id', async (req, res) => {
 
 app.get('/api/stats/global', async (req, res) => {
     if (useMock) {
-        const allPoints = MOCK_PROJECTS.flatMap(p => p.evolution_data.map(d => ({ ...d, project: p.title })));
-        return res.json(allPoints);
+        // Create a trend of progress over months from mock data
+        const stats = [
+            { date: 'JAN', prog: 20 },
+            { date: 'FEV', prog: 35 },
+            { date: 'MAR', prog: 45 },
+            { date: 'AVR', prog: 60 },
+            { date: 'MAI', prog: 78 },
+            { date: 'JUN', prog: 85 },
+        ];
+        return res.json(stats);
     }
     try {
-        const result = await pool.query('SELECT title, evolution_data FROM projects');
-        res.json(result.rows);
+        const result = await pool.query('SELECT evolution_data FROM projects WHERE evolution_data IS NOT NULL');
+
+        // Aggregate all projects data by date
+        const aggregation = {};
+        result.rows.forEach(row => {
+            try {
+                const data = typeof row.evolution_data === 'string' ? JSON.parse(row.evolution_data) : row.evolution_data;
+                if (Array.isArray(data)) {
+                    data.forEach(point => {
+                        if (!aggregation[point.date]) aggregation[point.date] = { sum: 0, count: 0 };
+                        aggregation[point.date].sum += point.prog || 0;
+                        aggregation[point.date].count += 1;
+                    });
+                }
+            } catch (pErr) {
+                console.error("Parse error for evolution_data:", pErr);
+            }
+        });
+
+        // Convert to array and calculate average
+        const stats = Object.keys(aggregation).sort().map(date => ({
+            date,
+            prog: Math.round(aggregation[date].sum / aggregation[date].count)
+        }));
+
+        res.json(stats);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/stats/summary', async (req, res) => {
+    if (useMock) {
+        return res.json({
+            partnersCount: MOCK_PARTNERS.length,
+            projectsCount: MOCK_PROJECTS.length,
+            reportsPending: MOCK_REPORTS.filter(r => r.status === 'en attente').length,
+            alertsCount: 3
+        });
+    }
+    try {
+        const partners = await pool.query('SELECT COUNT(*) as count FROM partners');
+        const projects = await pool.query('SELECT COUNT(*) as count FROM projects WHERE status = \'active\'');
+        const reports = await pool.query('SELECT COUNT(*) as count FROM reports WHERE status = \'pending\'');
+
+        res.json({
+            partnersCount: parseInt(partners.rows[0].count),
+            projectsCount: parseInt(projects.rows[0].count),
+            reportsPending: parseInt(reports.rows[0].count),
+            alertsCount: 0 // Logic for alerts could be added later
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
 app.get('/api/events', async (req, res) => {
-    if (useMock) return res.json(MOCK_EVENTS);
+    let partnerId = req.query.partnerId ? parseInt(req.query.partnerId) : null;
+    if (isNaN(partnerId)) partnerId = null;
+
+    if (useMock) {
+        // ... existing mock logic
+        let events = MOCK_EVENTS;
+        let reports = MOCK_REPORTS;
+        if (partnerId) {
+            events = MOCK_EVENTS.filter(e => e.partner_id === partnerId);
+            reports = MOCK_REPORTS.filter(r => r.partner_id === partnerId);
+        }
+
+        const eventItems = events.map(e => ({
+            ...e,
+            partner_name: MOCK_PARTNERS.find(p => p.id === e.partner_id)?.name || 'Général'
+        }));
+
+        const deadlineItems = reports.map(r => ({
+            id: `rep-${r.id}`,
+            title: `Deadline: ${r.title}`,
+            event_date: r.submission_date + 'T23:59:59',
+            type: 'deadline',
+            description: 'Date limite de soumission du rapport.',
+            partner_name: MOCK_PARTNERS.find(p => p.id === r.partner_id)?.name
+        }));
+
+        const all = [...eventItems, ...deadlineItems].sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+        return res.json(all);
+    }
+
     try {
-        const result = await pool.query('SELECT e.*, p.name as partner_name FROM events e JOIN partners p ON e.partner_id = p.id ORDER BY event_date');
-        res.json(result.rows);
+        // 1. Fetch standard events from DB
+        let eventQuery = 'SELECT e.*, p.name as partner_name FROM events e LEFT JOIN partners p ON e.partner_id = p.id';
+        const eventParams = [];
+        if (partnerId) {
+            eventQuery += ' WHERE e.partner_id = $1';
+            eventParams.push(partnerId);
+        }
+        const eventRes = await pool.query(eventQuery, eventParams);
+
+        // 2. Fetch report deadlines as events
+        let reportQuery = 'SELECT r.id, r.title, r.deadline as event_date, p.name as partner_name, \'deadline\' as type FROM reports r JOIN projects pr ON r.project_id = pr.id JOIN partners p ON pr.partner_id = p.id';
+        const reportParams = [];
+        if (partnerId) {
+            reportQuery += ' WHERE pr.partner_id = $1';
+            reportParams.push(partnerId);
+        }
+        const reportRes = await pool.query(reportQuery, reportParams);
+
+        // 3. GENERATE RECURRING MEETINGS BASE ON PARTNER FREQUENCY
+        let partnerQuery = 'SELECT id, name, meeting_frequency, contract_start_date FROM partners';
+        const pParams = [];
+        if (partnerId) {
+            partnerQuery += ' WHERE id = $1';
+            pParams.push(partnerId);
+        }
+        const partnersRes = await pool.query(partnerQuery, pParams);
+
+        const recurringEvents = [];
+        const today = new Date();
+        const threeMonthsLater = new Date();
+        threeMonthsLater.setMonth(today.getMonth() + 3);
+
+        partnersRes.rows.forEach(p => {
+            if (!p.meeting_frequency || p.meeting_frequency === 'aucune') return;
+
+            let currentDate = p.contract_start_date ? new Date(p.contract_start_date) : new Date();
+            // Reset to 10:00 AM for consistency
+            currentDate.setHours(10, 0, 0, 0);
+
+            // Skip dates in the far past, start from roughly now or contract start
+            while (currentDate < today && currentDate < threeMonthsLater) {
+                if (p.meeting_frequency === 'hebdomadaire') currentDate.setDate(currentDate.getDate() + 7);
+                else if (p.meeting_frequency === 'mensuelle') currentDate.setMonth(currentDate.getMonth() + 1);
+                else if (p.meeting_frequency === 'annuelle') currentDate.setFullYear(currentDate.getFullYear() + 1);
+                else break;
+            }
+
+            // Generate next occurrences
+            let count = 0;
+            while (currentDate <= threeMonthsLater && count < 12) {
+                recurringEvents.push({
+                    id: `recur-${p.id}-${count}`,
+                    partner_id: p.id,
+                    partner_name: p.name,
+                    title: `Réunion Régulière (${p.meeting_frequency})`,
+                    event_date: currentDate.toISOString(),
+                    type: 'meeting',
+                    description: `Réunion automatique basée sur la fréquence ${p.meeting_frequency}.`
+                });
+
+                if (p.meeting_frequency === 'hebdomadaire') currentDate.setDate(currentDate.getDate() + 7);
+                else if (p.meeting_frequency === 'mensuelle') currentDate.setMonth(currentDate.getMonth() + 1);
+                else if (p.meeting_frequency === 'annuelle') currentDate.setFullYear(currentDate.getFullYear() + 1);
+                else break;
+                count++;
+            }
+        });
+
+        const all = [...eventRes.rows, ...reportRes.rows, ...recurringEvents].sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+        res.json(all);
+    } catch (err) {
+        console.error("Error fetching events:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+app.post('/api/reports', async (req, res) => {
+    const { project_id, partner_id, title, deadline } = req.body;
+    if (useMock) {
+        const newReport = {
+            id: MOCK_REPORTS.length + 1000,
+            project_id: parseInt(project_id),
+            partner_id: parseInt(partner_id),
+            title,
+            deadline,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        };
+        MOCK_REPORTS.push(newReport);
+        return res.json(newReport);
+    }
+    try {
+        const result = await pool.query(
+            'INSERT INTO reports (project_id, title, deadline, status) VALUES ($1, $2, $3, $4) RETURNING *',
+            [project_id, title, deadline, 'pending']
+        );
+        res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -199,7 +597,13 @@ app.get('/api/partners/:id/projects', async (req, res) => {
     }
     try {
         const result = await pool.query('SELECT * FROM projects WHERE partner_id = $1', [id]);
-        res.json(result.rows);
+        const parsed = result.rows.map(p => {
+            if (p.evolution_data && typeof p.evolution_data === 'string') {
+                try { p.evolution_data = JSON.parse(p.evolution_data); } catch (e) { }
+            }
+            return p;
+        });
+        res.json(parsed);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -209,8 +613,50 @@ app.get('/api/templates', async (req, res) => {
     if (useMock) return res.json(MOCK_TEMPLATES);
     try {
         const result = await pool.query('SELECT t.*, p.name as partner_name FROM report_templates t JOIN partners p ON t.partner_id = p.id ORDER BY t.created_at DESC');
-        res.json(result.rows);
+        const parsed = result.rows.map(t => {
+            if (t.structure && typeof t.structure === 'string') {
+                try { t.structure = JSON.parse(t.structure); } catch (e) { }
+            }
+            return t;
+        });
+        res.json(parsed);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/templates', async (req, res) => {
+    console.log("POST /api/templates hit with:", req.body);
+    const { partner_id, title, instructions, structure, requires_video, requires_audio, requires_text, text_formats } = req.body;
+
+    if (useMock) {
+        const newTemplate = {
+            id: MOCK_TEMPLATES.length + 1,
+            partner_id,
+            title,
+            instructions,
+            structure,
+            requires_video: requires_video || false,
+            requires_audio: requires_audio || false,
+            requires_text: requires_text || true,
+            text_formats: text_formats || "PDF, Word",
+            created_at: new Date().toISOString()
+        };
+        MOCK_TEMPLATES.unshift(newTemplate);
+        return res.json(newTemplate);
+    }
+
+    try {
+        const result = await pool.query(
+            `INSERT INTO report_templates 
+            (partner_id, title, instructions, structure, requires_video, requires_audio, requires_text, text_formats) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+            RETURNING *`,
+            [partner_id, title, instructions, JSON.stringify(structure), requires_video, requires_audio, requires_text, text_formats]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Error saving template:", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -239,13 +685,55 @@ app.post('/api/ai/summarize', upload.single('report'), async (req, res) => {
             text = buffer.toString('utf8');
         }
 
-        const summary = await aiService.summarizeReport(text);
+        const isFinancial = req.file.originalname.toLowerCase().includes('financier') ||
+            req.file.originalname.toLowerCase().includes('budget') ||
+            req.file.originalname.toLowerCase().includes('finance');
+
+        const type = isFinancial ? 'financial' : 'narrative';
+        console.log(`Analyzing file as ${type}: ${req.file.originalname}`);
+
+        const summary = await aiService.summarizeReport(text, type);
         res.json(summary);
     } catch (err) {
         console.error("Route Error:", err);
         res.status(500).json({ error: "Erreur lors de l'analyse du rapport : " + err.message });
     }
 });
+
+app.post('/api/reports/:id/analyze', async (req, res) => {
+    const id = parseInt(req.params.id);
+    console.log(`POST /api/reports/${id}/analyze hit`);
+
+    let report = null;
+    let textContent = "";
+
+    try {
+        if (useMock) {
+            report = MOCK_REPORTS.find(r => r.id === id);
+            if (!report) return res.status(404).json({ error: "Rapport non trouvé" });
+        } else {
+            const result = await pool.query('SELECT * FROM reports WHERE id = $1', [id]);
+            if (result.rows.length === 0) return res.status(404).json({ error: "Rapport non trouvé" });
+            report = result.rows[0];
+        }
+
+        const isFinancial = report.title.toLowerCase().includes('financier') || report.title.toLowerCase().includes('budget');
+        const type = isFinancial ? 'financial' : 'narrative';
+
+        // Simulate reading content since we don't store actual files well in this demo
+        textContent = `Contenu simulé pour l'analyse du rapport "${report.title}". 
+        ${isFinancial ? "Ceci est un rapport financier détaillant les dépenses de la période. Budget alloué : 150000 EUR. Dépenses effectuées: 125000 EUR." : "Ceci est un rapport narratif détaillant les progrès sur le terrain, les réunions avec les parties prenantes et les formations réalisées."}`;
+
+        const analysis = await aiService.summarizeReport(textContent, type);
+        res.json({ ...analysis, type });
+
+    } catch (err) {
+        console.error("Error analyzing report:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 
 const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

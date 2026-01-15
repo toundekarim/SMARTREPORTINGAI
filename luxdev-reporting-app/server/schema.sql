@@ -7,8 +7,11 @@ CREATE TABLE IF NOT EXISTS partners (
     contract_start_date DATE NOT NULL,
     contract_end_date DATE NOT NULL,
     description TEXT,
+    meeting_frequency VARCHAR(50) DEFAULT 'mensuelle',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT 'Luxembourg';
 
 -- Create Projects Table
 CREATE TABLE IF NOT EXISTS projects (
@@ -18,8 +21,11 @@ CREATE TABLE IF NOT EXISTS projects (
     description TEXT,
     status VARCHAR(50) DEFAULT 'active',
     evolution_data JSONB, -- Example: [{"date": "2024-01", "progress": 10}, ...]
+    report_template_type VARCHAR(50), -- 'narrative' or 'financial'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS report_template_type VARCHAR(50);
 
 -- Create Report Templates Table
 CREATE TABLE IF NOT EXISTS report_templates (
@@ -31,8 +37,12 @@ CREATE TABLE IF NOT EXISTS report_templates (
     requires_text BOOLEAN DEFAULT TRUE,
     text_formats TEXT DEFAULT 'Word, PDF, Texte Simple',
     instructions TEXT,
+    structure JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Ensure structure column exists for existing tables
+ALTER TABLE report_templates ADD COLUMN IF NOT EXISTS structure JSONB;
 
 -- Create Reports Table
 CREATE TABLE IF NOT EXISTS reports (
@@ -40,9 +50,17 @@ CREATE TABLE IF NOT EXISTS reports (
     project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     deadline DATE NOT NULL,
+    submission_date DATE,
+    file_url TEXT,
+    video_url TEXT,
+    audio_url TEXT,
     status VARCHAR(50) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS file_url TEXT;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS video_url TEXT;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS audio_url TEXT;
 
 -- Create Events Table
 CREATE TABLE IF NOT EXISTS events (
@@ -56,15 +74,13 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 -- Insert Demo Data
-INSERT INTO partners (name, contact_email, contract_start_date, contract_end_date, description)
-VALUES 
-('Alpha Solutions', 'contact@alpha.lu', '2024-01-01', '2027-01-01', 'Partenaire technologique spécialisé en infrastructure.'),
-('Green Energy Co', 'info@green.lu', '2023-06-01', '2025-06-01', 'Consultants en développement durable.');
+INSERT INTO partners (name, contact_email, contract_start_date, contract_end_date, description, country)
+VALUES
+('Alpha Solutions', 'contact@alpha.lu', '2024-01-01', '2027-01-01', 'Partenaire technologique.', 'Luxembourg');
 
-INSERT INTO projects (partner_id, title, description, evolution_data)
-VALUES 
-(1, 'Digitalisation Phase 1', 'Mise en place de serveurs cloud.', '[{"date": "2024-01", "prog": 10}, {"date": "2024-03", "prog": 35}, {"date": "2024-06", "prog": 60}, {"date": "2024-09", "prog": 85}]'),
-(2, 'Audit Écomobilité', 'Analyse du parc automobile du partenaire.', '[{"date": "2023-06", "prog": 5}, {"date": "2023-12", "prog": 45}, {"date": "2024-06", "prog": 90}]');
+-- Removed default project as per previous request, assuming DB is clean or this runs on empty
+-- But if I need to update existing schema, the ALTER TABLE handles it.
+-- Ignoring insert into projects for demo data to keep it clean if requested.
 
 INSERT INTO report_templates (partner_id, title, requires_video, requires_audio, requires_text, instructions)
 VALUES 

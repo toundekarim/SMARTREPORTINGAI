@@ -54,25 +54,49 @@ async function generateReportTemplate(prompt) {
 /**
  * Résume un rapport à partir de son contenu textuel.
  */
-async function summarizeReport(text) {
+async function summarizeReport(text, reportType = 'narrative') {
     if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.includes("VOTRE_CLE")) {
-        return getSmartMockSummary(text);
+        return getSmartMockSummary(text, reportType);
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const fullPrompt = `
-    Analyse ce rapport LuxDev et fais en un résumé structuré.
-    Réponds en JSON uniquement :
-    {
-        "summary": "Résumé global",
-        "key_points": ["Point 1", "Point 2"],
-        "achievements": ["Réalisation 1"],
-        "risks": ["Risque 1"],
-        "recommendations": ["Conseil 1"]
+    let specificInstruction = "";
+    if (reportType === 'financial') {
+        specificInstruction = `
+        C'est un rapport FINANCIER.
+        Analyse les données chiffrées.
+        Ton résumé doit inclure explicitement le "budget_total_used" (montant ou pourcentage trouvé).
+        Structure ta réponse en JSON :
+        {
+            "summary": "Résumé de l'exécution budgétaire et financière",
+            "budget_total_used": "Montant ou % identifié",
+            "key_figures": ["Chiffre clé 1", "Chiffre clé 2"],
+            "anomalies": ["Anomalie potentielle 1" (si aucune, liste vide)],
+            "recommendations": ["Conseil financier"]
+        }
+        `;
+    } else {
+        specificInstruction = `
+        C'est un rapport NARRATIF.
+        Fais un résumé clair du contenu.
+        Structure ta réponse en JSON :
+        {
+            "summary": "Résumé clair et narratif des activités",
+            "key_points": ["Point clé 1", "Point clé 2"],
+            "achievements": ["Réalisation majeure"],
+            "risks": ["Risque identifié"],
+            "recommendations": ["Conseil stratégique"]
+        }
+        `;
     }
-    Texte : ${text.substring(0, 8000)}
+
+    const fullPrompt = `
+    Analyse ce rapport LuxDev.
+    ${specificInstruction}
+    
+    Texte du rapport : ${text.substring(0, 15000)}
     `;
 
     try {
@@ -82,12 +106,30 @@ async function summarizeReport(text) {
         return jsonMatch ? JSON.parse(jsonMatch[0]) : { summary: resText };
     } catch (error) {
         console.error("AI Summarization failed:", error);
-        return getSmartMockSummary(text);
+        return getSmartMockSummary(text, reportType);
     }
 }
 
-function getSmartMockSummary(text) {
+function getSmartMockSummary(text, reportType) {
     const t = text.toLowerCase();
+
+    if (reportType === 'financial' || t.includes('budget') || t.includes('eur') || t.includes('dépense')) {
+        return {
+            "summary": "Analyse financière simulée : Le taux d'absorption budgétaire est conforme aux prévisions trimestrielles.",
+            "budget_total_used": "125,000 EUR (78%)",
+            "key_figures": [
+                "Dépenses RH : 45,000 EUR",
+                "Matériel : 60,000 EUR",
+                "Frais de mission : 20,000 EUR"
+            ],
+            "anomalies": [],
+            "recommendations": [
+                "Préparer le réalignement budgétaire pour le Q4",
+                "Justifier les écarts sur la ligne 'Transport'"
+            ]
+        };
+    }
+
     let theme = "développement général";
     if (t.includes("santé")) theme = "secteur de la santé";
     if (t.includes("eau")) theme = "programmes d'accès à l'eau";

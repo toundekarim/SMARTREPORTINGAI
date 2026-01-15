@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Partners from './pages/Partners';
 import PartnerDetail from './pages/PartnerDetail';
+import ProjectDetail from './pages/ProjectDetail';
 import SharedEvents from './pages/SharedEvents';
 import PartnerDashboard from './pages/PartnerDashboard';
 import ReportsAll from './pages/ReportsAll';
@@ -33,6 +34,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/partners" element={<Partners />} />
             <Route path="/partners/:id" element={<PartnerDetail />} />
+            <Route path="/projects/:id" element={<ProjectDetail />} />
 
             {/* Common */}
             <Route path="/events" element={<SharedEvents />} />

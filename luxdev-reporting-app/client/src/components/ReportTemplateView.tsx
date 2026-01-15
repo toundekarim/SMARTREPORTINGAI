@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import axios from 'axios';
 import { Video, Mic, FileText, CheckCircle2, Upload, Paperclip, Trash2, Send, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -33,6 +34,7 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
     const [showFileTypeChoice, setShowFileTypeChoice] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [aiSummary, setAiSummary] = useState<any>(null);
 
     const handleFileChange = (type: 'video' | 'audio' | 'financial' | 'narrative', e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
@@ -44,6 +46,7 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
 
     const removeFile = (type: string) => {
         setFiles(prev => ({ ...prev, [type]: null }));
+        if (type === 'narrative') setAiSummary(null);
     };
 
     const triggerUpload = (type: 'video' | 'audio' | 'text') => {
@@ -55,13 +58,33 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
         }
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         setIsSubmitting(true);
-        setTimeout(() => {
-            setIsSubmitting(false);
+        try {
+            const formData = new FormData();
+            // We mainly summarize the narrative report
+            // Check for either narrative or financial report
+            const reportFile = files.narrative || files.financial;
+            if (reportFile) {
+                formData.append('report', reportFile);
+                const res = await axios.post('http://localhost:3000/api/ai/summarize', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                setAiSummary(res.data);
+            } else {
+                // Mock delay if no narrative file for summary
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
             setIsSubmitted(true);
-            setTimeout(() => setIsSubmitted(false), 5000);
-        }, 2000);
+            setTimeout(() => {
+                setIsSubmitted(false);
+                // In a real app, we might redirect or clear files here
+            }, 8000);
+        } catch (err) {
+            console.error("Submission failed", err);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const hasAnyFile = files.video || files.audio || files.financial || files.narrative;
@@ -73,10 +96,7 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
             <input type="file" ref={financialInputRef} accept=".pdf,.xls,.xlsx" className="hidden" onChange={(e) => handleFileChange('financial', e)} />
             <input type="file" ref={narrativeInputRef} accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={(e) => handleFileChange('narrative', e)} />
 
-            <div className="flex items-center justify-between">
-                <h4 className="text-sm font-black text-lux-slate uppercase tracking-tight">Référentiel de Rapport</h4>
-                <span className="text-[10px] font-bold text-lux-teal bg-lux-teal/5 px-2 py-0.5 rounded-full">Standard LuxDev</span>
-            </div>
+
 
             <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl relative overflow-hidden text-left">
                 <h5 className="font-bold text-lux-slate mb-4">{template.title}</h5>
@@ -84,7 +104,6 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                 <div className={`grid ${showMediaOptions ? 'grid-cols-3' : 'grid-cols-1'} gap-4 mb-6`}>
                     {showMediaOptions && (
                         <>
-                            {/* Video Card */}
                             <div
                                 onClick={() => triggerUpload('video')}
                                 className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all cursor-pointer relative group ${files.video ? 'bg-emerald-50 border-emerald-500 shadow-sm' : template.requires_video ? 'bg-white border-lux-teal shadow-sm hover:border-lux-blue' : 'bg-slate-100/50 border-slate-200 opacity-50 cursor-not-allowed'}`}
@@ -96,7 +115,6 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                                 <span className="text-[8px] font-black uppercase text-center">{files.video ? 'Vidéo prête' : 'Vidéo Demo'}</span>
                             </div>
 
-                            {/* Audio Card */}
                             <div
                                 onClick={() => triggerUpload('audio')}
                                 className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all cursor-pointer relative group ${files.audio ? 'bg-emerald-50 border-emerald-500 shadow-sm' : template.requires_audio ? 'bg-white border-lux-teal shadow-sm hover:border-lux-blue' : 'bg-slate-100/50 border-slate-200 opacity-50 cursor-not-allowed'}`}
@@ -110,7 +128,6 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                         </>
                     )}
 
-                    {/* Text Card with Menu Trigger */}
                     <div
                         onClick={() => triggerUpload('text')}
                         className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all cursor-pointer relative group ${(files.financial || files.narrative) ? 'bg-emerald-50 border-emerald-500 shadow-sm' : template.requires_text ? 'bg-white border-lux-teal shadow-sm hover:border-lux-blue' : 'bg-slate-100/50 border-slate-200 opacity-50 cursor-not-allowed'}`}
@@ -123,7 +140,6 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                     </div>
                 </div>
 
-                {/* File selection and other logic remains same */}
                 <AnimatePresence>
                     {showFileTypeChoice && (
                         <motion.div
@@ -169,22 +185,51 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-lux-teal/95 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6 text-center text-white"
+                            className="absolute inset-0 bg-lux-teal/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-8 text-center text-white overflow-y-auto"
                         >
                             <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
-                                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4"
+                                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4 shrink-0"
                             >
                                 <Check size={32} strokeWidth={4} />
                             </motion.div>
-                            <h2 className="text-xl font-black uppercase tracking-tight mb-2">Rapport Envoyé !</h2>
-                            <p className="text-sm font-medium opacity-80">LuxDev a bien reçu votre soumission.</p>
+                            <h2 className="text-xl font-black uppercase tracking-tight mb-2">Analyse IA Terminée !</h2>
+
+                            {aiSummary ? (
+                                <div className="space-y-4 max-w-md animate-in slide-in-from-bottom-4 duration-500">
+                                    <div className="bg-white/10 p-4 rounded-2xl text-left">
+                                        <p className="text-[10px] font-black uppercase mb-2 opacity-60">Résumé Instantané</p>
+                                        <p className="text-xs leading-relaxed">{aiSummary.summary}</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-white/10 p-3 rounded-2xl text-left">
+                                            <p className="text-[10px] font-black uppercase mb-1 opacity-60">Risques</p>
+                                            <ul className="text-[8px] list-disc ml-3">
+                                                {aiSummary.risks?.slice(0, 2).map((r: string, i: number) => <li key={i}>{r}</li>)}
+                                            </ul>
+                                        </div>
+                                        <div className="bg-white/10 p-3 rounded-2xl text-left">
+                                            <p className="text-[10px] font-black uppercase mb-1 opacity-60">Recommandations</p>
+                                            <ul className="text-[8px] list-disc ml-3">
+                                                {aiSummary.recommendations?.slice(0, 2).map((r: string, i: number) => <li key={i}>{r}</li>)}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsSubmitted(false)}
+                                        className="w-full bg-white text-lux-teal py-3 rounded-xl font-black text-xs uppercase"
+                                    >
+                                        Terminer
+                                    </button>
+                                </div>
+                            ) : (
+                                <p className="text-sm font-medium opacity-80">Rapport bien reçu, analyse en cours par LuxDev.</p>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
 
-                {/* Selected Files List */}
                 <AnimatePresence>
                     {hasAnyFile && (
                         <motion.div
@@ -193,7 +238,6 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                             className="mb-6 p-4 bg-white/50 border border-slate-100 rounded-2xl space-y-3"
                         >
                             <p className="text-[8px] font-black uppercase text-slate-400 mb-1 text-left">Pièces jointes sélectionnées</p>
-
                             {[
                                 { key: 'video', label: 'Vidéo', color: 'text-emerald-500' },
                                 { key: 'audio', label: 'Audio', color: 'text-emerald-500' },
@@ -212,13 +256,14 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                                         <span className={`text-[8px] uppercase ${item.color} shrink-0`}>{item.label}:</span>
                                         <span className="truncate">{files[item.key]!.name}</span>
                                     </div>
-                                    <button
-                                        disabled={isSubmitting}
-                                        onClick={() => removeFile(item.key)}
-                                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all md:opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Trash2 size={12} />
-                                    </button>
+                                    {!isSubmitting && (
+                                        <button
+                                            onClick={() => removeFile(item.key)}
+                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all md:opacity-0 group-hover:opacity-100"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    )}
                                 </motion.div>
                             ))}
                         </motion.div>
@@ -245,17 +290,17 @@ const ReportTemplateView: React.FC<Props> = ({ template, showMediaOptions = true
                         <button
                             onClick={handleSubmit}
                             disabled={isSubmitting}
-                            className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg ${isSubmitting ? 'bg-slate-100 text-slate-400 scale-95' : 'bg-lux-teal text-white shadow-lux-teal/20 hover:scale-[1.02] hover:bg-lux-blue'}`}
+                            className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg ${isSubmitting ? 'bg-lux-slate text-white scale-95' : 'bg-lux-teal text-white shadow-lux-teal/20 hover:scale-[1.02] hover:bg-lux-blue'}`}
                         >
                             {isSubmitting ? (
                                 <>
-                                    <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin"></div>
-                                    Envoi en cours...
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    Analyse IA en cours...
                                 </>
                             ) : (
                                 <>
                                     <Send size={18} />
-                                    Envoyer le rapport à LuxDev
+                                    Envoyer et Analyser
                                 </>
                             )}
                         </button>

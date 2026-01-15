@@ -14,6 +14,7 @@ export interface Partner {
     contract_start_date: string;
     contract_end_date: string;
     description: string;
+    meeting_frequency?: 'aucune' | 'hebdomadaire' | 'mensuelle' | 'annuelle';
     active_projects?: number;
 }
 

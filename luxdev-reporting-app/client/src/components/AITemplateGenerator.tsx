@@ -166,10 +166,23 @@ const AITemplateGenerator: React.FC<Props> = ({ partnerId, onTemplateApplied }) 
         if (!generatedTemplate) return;
         try {
             console.log("Applying template to partner", partnerId, generatedTemplate);
+
+            await axios.post('http://localhost:3000/api/templates', {
+                partner_id: partnerId,
+                title: generatedTemplate.title,
+                instructions: generatedTemplate.instructions,
+                structure: generatedTemplate.structure,
+                requires_video: generatedTemplate.requires_video,
+                requires_audio: generatedTemplate.requires_audio,
+                requires_text: generatedTemplate.requires_text,
+                text_formats: generatedTemplate.text_formats
+            });
+
             onTemplateApplied();
             setGeneratedTemplate(null);
             setPrompt('');
         } catch (err) {
+            console.error("Error saving template", err);
             setError("Erreur lors de la sauvegarde du modèle.");
         }
     };

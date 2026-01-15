@@ -34,36 +34,53 @@ const StatCard = ({ label, value, icon: Icon, color, trend }: any) => (
 const Dashboard = () => {
     const { user } = useAuth();
     const [globalStats, setGlobalStats] = useState<any[]>([]);
+    const [summary, setSummary] = useState<any>({
+        partnersCount: 0,
+        projectsCount: 0,
+        reportsPending: 0,
+        alertsCount: 0
+    });
+    const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
 
     useEffect(() => {
-        const fetchStats = async () => {
+        const fetchData = async () => {
             try {
-                const res = await axios.get('http://localhost:3000/api/stats/global');
-                // Mock aggregation
-                setGlobalStats([
-                    { date: 'JAN', prog: 25 },
-                    { date: 'FEV', prog: 40 },
-                    { date: 'MAR', prog: 55 },
-                    { date: 'AVR', prog: 75 },
-                    { date: 'MAI', prog: 90 },
+                const [statsRes, summaryRes, eventsRes] = await Promise.all([
+                    axios.get('http://localhost:3000/api/stats/global'),
+                    axios.get('http://localhost:3000/api/stats/summary'),
+                    axios.get('http://localhost:3000/api/events')
                 ]);
+                setGlobalStats(statsRes.data);
+                setSummary(summaryRes.data);
+                setUpcomingEvents(eventsRes.data.slice(0, 4));
             } catch (err) {
-                console.error("Error fetching stats", err);
+                console.error("Error fetching dashboard data", err);
             }
         };
-        fetchStats();
+        fetchData();
     }, []);
 
     const isAdmin = user?.role === 'admin';
+
+    const formatEventDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diff = date.getTime() - now.getTime();
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+        if (days === 0) return "Aujourd'hui";
+        if (days === 1) return "Demain";
+        return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    };
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
             {/* Stats Grid */}
             <div className={`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6`}>
-                {isAdmin && <StatCard label="Partenaires" value="12" icon={Users} color="bg-lux-blue" trend="+20%" />}
-                <StatCard label="Projets actifs" value="48" icon={ArrowUpRight} color="bg-lux-teal" trend="+5" />
-                <StatCard label="Rapports attendus" value="09" icon={FileText} color="bg-amber-500" />
-                <StatCard label="Alertes" value="03" icon={AlertCircle} color="bg-red-500" />
+                {isAdmin && <StatCard label="Partenaires" value={summary.partnersCount} icon={Users} color="bg-lux-blue" trend="+2" />}
+                <StatCard label="Projets actifs" value={summary.projectsCount} icon={ArrowUpRight} color="bg-lux-teal" trend="+1" />
+                <StatCard label="Rapports en attente" value={summary.reportsPending} icon={FileText} color="bg-amber-500" />
+                <StatCard label="Alertes" value={summary.alertsCount} icon={AlertCircle} color="bg-red-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -74,7 +91,7 @@ const Dashboard = () => {
                             <TrendingUp size={20} className="text-lux-blue" />
                             Évolution Globale des Projets
                         </h3>
-                        <span className="text-[10px] font-black uppercase text-slate-400">Moyenne pondérée</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400">Suivi en temps réel</span>
                     </div>
 
                     <div className="mt-10">
@@ -107,24 +124,22 @@ const Dashboard = () => {
                     </div>
 
                     <div className="space-y-6">
-                        {[
-                            { title: 'Réunion Alpha Tech', type: 'meeting', date: 'Demain, 10:00', partner: 'Alpha Solutions' },
-                            { title: 'Remise Rapport Q1', type: 'deadline', date: 'Jeu. 16 Janv.', partner: 'Green Energy' },
-                            { title: 'Visite Terrain', type: 'meeting', date: 'Ven. 17 Janv.', partner: 'Build Corp' },
-                        ].map((event, i) => (
+                        {upcomingEvents.length > 0 ? upcomingEvents.map((event, i) => (
                             <div key={i} className="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-all cursor-pointer group">
                                 <div className={`mt-1 w-2 h-2 rounded-full ${event.type === 'meeting' ? 'bg-lux-teal' : 'bg-amber-500'} group-hover:scale-150 transition-transform`}></div>
                                 <div className="flex-1">
-                                    <h4 className="font-bold text-xs text-lux-slate">{event.title}</h4>
-                                    <p className="text-[10px] text-slate-400 font-medium">{event.partner}</p>
+                                    <h4 className="font-bold text-xs text-lux-slate truncate">{event.title}</h4>
+                                    <p className="text-[10px] text-slate-400 font-medium">{event.partner_name}</p>
                                 </div>
                                 <div className="text-right">
-                                    <span className="text-[8px] font-black uppercase bg-slate-100 px-2 py-1 rounded-md text-slate-500 line-clamp-1">
-                                        {event.date}
+                                    <span className="text-[8px] font-black uppercase bg-slate-100 px-2 py-1 rounded-md text-slate-500 whitespace-nowrap">
+                                        {formatEventDate(event.event_date)}
                                     </span>
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <p className="text-center text-slate-400 text-sm italic py-10">Aucun événement à venir</p>
+                        )}
                     </div>
                 </section>
             </div>

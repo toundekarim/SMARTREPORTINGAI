@@ -5,12 +5,12 @@ import { ShieldCheck, User as UserIcon, Lock, ArrowRight, Sparkles } from 'lucid
 import { motion } from 'framer-motion';
 
 const Login = () => {
-    const { login, isAuthenticated } = useAuth();
+    const { login, isAuthenticated, user } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
     if (isAuthenticated) {
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to={user?.role === 'partner' ? '/partner-dashboard' : '/dashboard'} replace />;
     }
 
     return (

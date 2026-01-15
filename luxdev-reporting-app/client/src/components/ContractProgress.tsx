@@ -1,6 +1,6 @@
 import React from 'react';
-import { differenceInDays, formatDistanceStrict } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { differenceInDays, intervalToDuration } from 'date-fns';
+
 
 interface Props {
     startDate: string;
@@ -12,27 +12,52 @@ const ContractProgress: React.FC<Props> = ({ startDate, endDate }) => {
     const end = new Date(endDate);
     const today = new Date();
 
+    // Reset usage of time to avoid discrepancies
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
     const totalDays = differenceInDays(end, start);
     const daysPassed = differenceInDays(today, start);
     const daysLeft = differenceInDays(end, today);
 
+    // Clamp progress between 0 and 100
     const progress = Math.min(100, Math.max(0, (daysPassed / totalDays) * 100));
 
-    // Calculate readable time left
-    const timeLeftStr = formatDistanceStrict(end, today, { locale: fr });
+    // Calculate precise remaining time
+    let timeLeftStr = "Contrat terminé";
+    if (daysLeft > 0) {
+        const duration = intervalToDuration({
+            start: today,
+            end: end
+        });
+
+        const parts = [];
+        if (duration.years && duration.years > 0) parts.push(`${duration.years} an${duration.years > 1 ? 's' : ''}`);
+        if (duration.months && duration.months > 0) parts.push(`${duration.months} mois`);
+        if (duration.days && duration.days > 0) parts.push(`${duration.days} jour${duration.days > 1 ? 's' : ''}`);
+
+        if (parts.length === 0) {
+            timeLeftStr = "Aujourd'hui"; // less than a day (should trigger days>0 check though, but just in case)
+        } else {
+            timeLeftStr = parts.join(', ');
+        }
+    } else if (differenceInDays(today, start) < 0) {
+        timeLeftStr = "Pas encore commencé";
+    }
 
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-end">
                 <div>
                     <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Temps de contrat restant</p>
-                    <p className="text-2xl font-black text-lux-slate tracking-tight">
-                        {daysLeft > 0 ? timeLeftStr : "Contrat terminé"}
+                    <p className="text-xl font-black text-lux-slate tracking-tight truncate max-w-[200px]" title={timeLeftStr}>
+                        {timeLeftStr}
                     </p>
                 </div>
                 <div className="text-right">
                     <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Échéance finale</p>
-                    <p className="text-sm font-bold text-lux-blue">{new Date(endDate).toLocaleDateString('fr-FR')}</p>
+                    <p className="text-sm font-bold text-lux-blue">{end.toLocaleDateString('fr-FR')}</p>
                 </div>
             </div>
 
@@ -46,7 +71,7 @@ const ContractProgress: React.FC<Props> = ({ startDate, endDate }) => {
             </div>
 
             <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
-                <span>Début: {new Date(startDate).toLocaleDateString('fr-FR')}</span>
+                <span>Début: {start.toLocaleDateString('fr-FR')}</span>
                 <span>{Math.round(progress)}% écoulé</span>
             </div>
         </div>
