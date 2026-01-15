@@ -246,7 +246,7 @@ const PartnerDetail = () => {
                         </h3>
 
                         <div className="space-y-4">
-                            {partner.reports && partner.reports.length > 0 ? partner.reports.map((report: any) => (
+                            {partner.reports && partner.reports.filter((r: any) => r.submission_date).length > 0 ? partner.reports.filter((r: any) => r.submission_date).map((report: any) => (
                                 <div key={report.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-dotted border-slate-200">
                                     <div className="flex items-center gap-3">
                                         <div

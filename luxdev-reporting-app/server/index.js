@@ -764,6 +764,10 @@ app.post('/api/reports', upload.single('report_file'), async (req, res) => {
     const submissionDate = new Date().toISOString().split('T')[0];
     const filePath = req.file ? req.file.path : null;
 
+    // Only set submission_date if a file is uploaded (actual submission)
+    // If it's just an assignment (admin setting deadline), submission_date should be null
+    const actualSubmissionDate = req.file ? submissionDate : null;
+
     if (useMock) {
         const newReport = {
             id: MOCK_REPORTS.length + 1000,
@@ -771,19 +775,19 @@ app.post('/api/reports', upload.single('report_file'), async (req, res) => {
             partner_id: parseInt(partner_id || 0) || (MOCK_PROJECTS.find(p => p.id === parseInt(project_id))?.partner_id),
             title,
             deadline: deadline || submissionDate,
-            submission_date: submissionDate,
-            status: status || 'en attente',
+            submission_date: actualSubmissionDate,
+            status: status || (req.file ? 'en attente' : 'attendu'),
             file_path: filePath,
             created_at: new Date().toISOString()
         };
         MOCK_REPORTS.push(newReport);
-        console.log("Mock Report added with file:", newReport.title, filePath);
+        console.log("Mock Report added:", newReport.title, "File:", filePath, "Date:", actualSubmissionDate);
         return res.json(newReport);
     }
     try {
         const result = await pool.query(
             'INSERT INTO reports (project_id, title, deadline, submission_date, status, file_path) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [project_id, title, deadline || submissionDate, submissionDate, status || 'en attente', filePath]
+            [project_id, title, deadline || submissionDate, actualSubmissionDate, status || (req.file ? 'en attente' : 'attendu'), filePath]
         );
         res.json(result.rows[0]);
     } catch (err) {
